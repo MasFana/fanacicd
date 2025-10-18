@@ -1,29 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CI/CD Dashboard - Login</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: black;
             font-family: Arial, sans-serif;
-            max-width: 400px;
-            margin: 100px auto;
-            padding: 20px
+        }
+
+        .login-container {
+            width: 300px;
+            padding: 30px;
+            border-radius: 8px;
+            background-color: #111;
+            text-align: center;
+        }
+
+        h2 {
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: white;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #005a9e;
+        }
+
+        .error {
+            color: #ff4444;
+            margin-top: 15px;
+            min-height: 20px;
         }
     </style>
 </head>
 
 <body>
-    <h2>CI/CD Dashboard Login</h2>
-    <form id="loginForm"><label>Password:</label><input id="password" type="password" required><button
-            type="submit">Login</button></form>
-    <div id="error" style="color:red"></div>
+    <div class="login-container">
+        <h2>CI/CD Dashboard Login</h2>
+        <form id="loginForm">
+            <input type="password" id="password" placeholder="Enter password" required>
+            <button type="submit">Login</button>
+        </form>
+        <div id="error" class="error"></div>
+    </div>
+
     <script>
-        document.getElementById('loginForm').addEventListener('submit', async e => {
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
             e.preventDefault();
-            const resp = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: document.getElementById('password').value }) });
-            if (resp.ok) location.href = '/'; else { const d = await resp.json(); document.getElementById('error').textContent = d.error || 'Login failed'; }
+
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = '';
+
+            try {
+                const resp = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                });
+
+                if (resp.ok) {
+                    location.href = '/';
+                } else {
+                    const data = await resp.json();
+                    errorDiv.textContent = data.error || 'Login failed';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Network error: ' + error.message;
+            }
         });
+
+        document.getElementById('password').focus();
     </script>
 </body>
 

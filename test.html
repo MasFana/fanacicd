@@ -1,0 +1,2971 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fana CI/CD Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --border-color: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --text-tertiary: #71717a;
+            --accent: #0070f3;
+            --accent-hover: #0061d6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .glass-modal {
+            background: rgba(17, 17, 17, 0.9);
+            backdrop-filter: blur(25px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+        }
+
+        .status-running {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+        }
+
+        .status-stopped {
+            background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);
+        }
+
+        .status-building {
+            background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        }
+
+        .status-built {
+            background: linear-gradient(135deg, var(--info) 0%, #2563eb 100%);
+        }
+
+        .status-error {
+            background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);
+        }
+
+        .log-container {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .animate-pulse-slow {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+
+        .log-container pre {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        .log-container pre::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .log-container pre::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .log-container pre::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+
+        .modal-overlay {
+            z-index: 1000;
+        }
+
+        .modal-content {
+            z-index: 1001;
+        }
+
+
+        .dark-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .dark-input:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.2);
+        }
+
+
+        #projectsContainer::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #projectsContainer::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        #projectsContainer::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        #projectsContainer::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+
+        .tab-active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent);
+        }
+
+        .tab-inactive {
+            color: var(--text-secondary);
+            border-bottom-color: transparent;
+        }
+
+
+        .status-badge {
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+        }
+    </style>
+    <style>
+        *,
+        ::before,
+        ::after {
+            --tw-border-spacing-x: 0;
+            --tw-border-spacing-y: 0;
+            --tw-translate-x: 0;
+            --tw-translate-y: 0;
+            --tw-rotate: 0;
+            --tw-skew-x: 0;
+            --tw-skew-y: 0;
+            --tw-scale-x: 1;
+            --tw-scale-y: 1;
+            --tw-pan-x: ;
+            --tw-pan-y: ;
+            --tw-pinch-zoom: ;
+            --tw-scroll-snap-strictness: proximity;
+            --tw-gradient-from-position: ;
+            --tw-gradient-via-position: ;
+            --tw-gradient-to-position: ;
+            --tw-ordinal: ;
+            --tw-slashed-zero: ;
+            --tw-numeric-figure: ;
+            --tw-numeric-spacing: ;
+            --tw-numeric-fraction: ;
+            --tw-ring-inset: ;
+            --tw-ring-offset-width: 0px;
+            --tw-ring-offset-color: #fff;
+            --tw-ring-color: rgb(59 130 246 / 0.5);
+            --tw-ring-offset-shadow: 0 0 #0000;
+            --tw-ring-shadow: 0 0 #0000;
+            --tw-shadow: 0 0 #0000;
+            --tw-shadow-colored: 0 0 #0000;
+            --tw-blur: ;
+            --tw-brightness: ;
+            --tw-contrast: ;
+            --tw-grayscale: ;
+            --tw-hue-rotate: ;
+            --tw-invert: ;
+            --tw-saturate: ;
+            --tw-sepia: ;
+            --tw-drop-shadow: ;
+            --tw-backdrop-blur: ;
+            --tw-backdrop-brightness: ;
+            --tw-backdrop-contrast: ;
+            --tw-backdrop-grayscale: ;
+            --tw-backdrop-hue-rotate: ;
+            --tw-backdrop-invert: ;
+            --tw-backdrop-opacity: ;
+            --tw-backdrop-saturate: ;
+            --tw-backdrop-sepia: ;
+            --tw-contain-size: ;
+            --tw-contain-layout: ;
+            --tw-contain-paint: ;
+            --tw-contain-style:
+        }
+
+        ::backdrop {
+            --tw-border-spacing-x: 0;
+            --tw-border-spacing-y: 0;
+            --tw-translate-x: 0;
+            --tw-translate-y: 0;
+            --tw-rotate: 0;
+            --tw-skew-x: 0;
+            --tw-skew-y: 0;
+            --tw-scale-x: 1;
+            --tw-scale-y: 1;
+            --tw-pan-x: ;
+            --tw-pan-y: ;
+            --tw-pinch-zoom: ;
+            --tw-scroll-snap-strictness: proximity;
+            --tw-gradient-from-position: ;
+            --tw-gradient-via-position: ;
+            --tw-gradient-to-position: ;
+            --tw-ordinal: ;
+            --tw-slashed-zero: ;
+            --tw-numeric-figure: ;
+            --tw-numeric-spacing: ;
+            --tw-numeric-fraction: ;
+            --tw-ring-inset: ;
+            --tw-ring-offset-width: 0px;
+            --tw-ring-offset-color: #fff;
+            --tw-ring-color: rgb(59 130 246 / 0.5);
+            --tw-ring-offset-shadow: 0 0 #0000;
+            --tw-ring-shadow: 0 0 #0000;
+            --tw-shadow: 0 0 #0000;
+            --tw-shadow-colored: 0 0 #0000;
+            --tw-blur: ;
+            --tw-brightness: ;
+            --tw-contrast: ;
+            --tw-grayscale: ;
+            --tw-hue-rotate: ;
+            --tw-invert: ;
+            --tw-saturate: ;
+            --tw-sepia: ;
+            --tw-drop-shadow: ;
+            --tw-backdrop-blur: ;
+            --tw-backdrop-brightness: ;
+            --tw-backdrop-contrast: ;
+            --tw-backdrop-grayscale: ;
+            --tw-backdrop-hue-rotate: ;
+            --tw-backdrop-invert: ;
+            --tw-backdrop-opacity: ;
+            --tw-backdrop-saturate: ;
+            --tw-backdrop-sepia: ;
+            --tw-contain-size: ;
+            --tw-contain-layout: ;
+            --tw-contain-paint: ;
+            --tw-contain-style:
+        }
+
+        /* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */
+        *,
+        ::after,
+        ::before {
+            box-sizing: border-box;
+            border-width: 0;
+            border-style: solid;
+            border-color: #e5e7eb
+        }
+
+        ::after,
+        ::before {
+            --tw-content: ''
+        }
+
+        :host,
+        html {
+            line-height: 1.5;
+            -webkit-text-size-adjust: 100%;
+            -moz-tab-size: 4;
+            tab-size: 4;
+            font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            font-feature-settings: normal;
+            font-variation-settings: normal;
+            -webkit-tap-highlight-color: transparent
+        }
+
+        body {
+            margin: 0;
+            line-height: inherit
+        }
+
+        hr {
+            height: 0;
+            color: inherit;
+            border-top-width: 1px
+        }
+
+        abbr:where([title]) {
+            -webkit-text-decoration: underline dotted;
+            text-decoration: underline dotted
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-size: inherit;
+            font-weight: inherit
+        }
+
+        a {
+            color: inherit;
+            text-decoration: inherit
+        }
+
+        b,
+        strong {
+            font-weight: bolder
+        }
+
+        code,
+        kbd,
+        pre,
+        samp {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-feature-settings: normal;
+            font-variation-settings: normal;
+            font-size: 1em
+        }
+
+        small {
+            font-size: 80%
+        }
+
+        sub,
+        sup {
+            font-size: 75%;
+            line-height: 0;
+            position: relative;
+            vertical-align: baseline
+        }
+
+        sub {
+            bottom: -.25em
+        }
+
+        sup {
+            top: -.5em
+        }
+
+        table {
+            text-indent: 0;
+            border-color: inherit;
+            border-collapse: collapse
+        }
+
+        button,
+        input,
+        optgroup,
+        select,
+        textarea {
+            font-family: inherit;
+            font-feature-settings: inherit;
+            font-variation-settings: inherit;
+            font-size: 100%;
+            font-weight: inherit;
+            line-height: inherit;
+            letter-spacing: inherit;
+            color: inherit;
+            margin: 0;
+            padding: 0
+        }
+
+        button,
+        select {
+            text-transform: none
+        }
+
+        button,
+        input:where([type=button]),
+        input:where([type=reset]),
+        input:where([type=submit]) {
+            -webkit-appearance: button;
+            background-color: transparent;
+            background-image: none
+        }
+
+        :-moz-focusring {
+            outline: auto
+        }
+
+        :-moz-ui-invalid {
+            box-shadow: none
+        }
+
+        progress {
+            vertical-align: baseline
+        }
+
+        ::-webkit-inner-spin-button,
+        ::-webkit-outer-spin-button {
+            height: auto
+        }
+
+        [type=search] {
+            -webkit-appearance: textfield;
+            outline-offset: -2px
+        }
+
+        ::-webkit-search-decoration {
+            -webkit-appearance: none
+        }
+
+        ::-webkit-file-upload-button {
+            -webkit-appearance: button;
+            font: inherit
+        }
+
+        summary {
+            display: list-item
+        }
+
+        blockquote,
+        dd,
+        dl,
+        figure,
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6,
+        hr,
+        p,
+        pre {
+            margin: 0
+        }
+
+        fieldset {
+            margin: 0;
+            padding: 0
+        }
+
+        legend {
+            padding: 0
+        }
+
+        menu,
+        ol,
+        ul {
+            list-style: none;
+            margin: 0;
+            padding: 0
+        }
+
+        dialog {
+            padding: 0
+        }
+
+        textarea {
+            resize: vertical
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            opacity: 1;
+            color: #9ca3af
+        }
+
+        [role=button],
+        button {
+            cursor: pointer
+        }
+
+        :disabled {
+            cursor: default
+        }
+
+        audio,
+        canvas,
+        embed,
+        iframe,
+        img,
+        object,
+        svg,
+        video {
+            display: block;
+            vertical-align: middle
+        }
+
+        img,
+        video {
+            max-width: 100%;
+            height: auto
+        }
+
+        [hidden]:where(:not([hidden=until-found])) {
+            display: none
+        }
+
+        .container {
+            width: 100%
+        }
+
+        @media (min-width: 640px) {
+            .container {
+                max-width: 640px
+            }
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                max-width: 768px
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .container {
+                max-width: 1024px
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .container {
+                max-width: 1280px
+            }
+        }
+
+        @media (min-width: 1536px) {
+            .container {
+                max-width: 1536px
+            }
+        }
+
+        .fixed {
+            position: fixed
+        }
+
+        .inset-0 {
+            inset: 0px
+        }
+
+        .mx-auto {
+            margin-left: auto;
+            margin-right: auto
+        }
+
+        .mb-1 {
+            margin-bottom: 0.25rem
+        }
+
+        .mb-2 {
+            margin-bottom: 0.5rem
+        }
+
+        .mb-4 {
+            margin-bottom: 1rem
+        }
+
+        .mb-6 {
+            margin-bottom: 1.5rem
+        }
+
+        .mb-8 {
+            margin-bottom: 2rem
+        }
+
+        .ml-2 {
+            margin-left: 0.5rem
+        }
+
+        .mt-4 {
+            margin-top: 1rem
+        }
+
+        .block {
+            display: block
+        }
+
+        .flex {
+            display: flex
+        }
+
+        .grid {
+            display: grid
+        }
+
+        .hidden {
+            display: none
+        }
+
+        .h-12 {
+            height: 3rem
+        }
+
+        .h-5 {
+            height: 1.25rem
+        }
+
+        .h-6 {
+            height: 1.5rem
+        }
+
+        .h-8 {
+            height: 2rem
+        }
+
+        .h-full {
+            height: 100%
+        }
+
+        .h-2 {
+            height: 0.5rem
+        }
+
+        .h-4 {
+            height: 1rem
+        }
+
+        .max-h-\[600px\] {
+            max-height: 600px
+        }
+
+        .max-h-\[90vh\] {
+            max-height: 90vh
+        }
+
+        .min-h-screen {
+            min-height: 100vh
+        }
+
+        .w-12 {
+            width: 3rem
+        }
+
+        .w-5 {
+            width: 1.25rem
+        }
+
+        .w-6 {
+            width: 1.5rem
+        }
+
+        .w-8 {
+            width: 2rem
+        }
+
+        .w-full {
+            width: 100%
+        }
+
+        .w-2 {
+            width: 0.5rem
+        }
+
+        .w-4 {
+            width: 1rem
+        }
+
+        .max-w-6xl {
+            max-width: 72rem
+        }
+
+        .flex-1 {
+            flex: 1 1 0%
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .animate-spin {
+            animation: spin 1s linear infinite
+        }
+
+        .grid-cols-1 {
+            grid-template-columns: repeat(1, minmax(0, 1fr))
+        }
+
+        .grid-cols-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr))
+        }
+
+        .flex-col {
+            flex-direction: column
+        }
+
+        .flex-wrap {
+            flex-wrap: wrap
+        }
+
+        .items-center {
+            align-items: center
+        }
+
+        .justify-center {
+            justify-content: center
+        }
+
+        .justify-between {
+            justify-content: space-between
+        }
+
+        .gap-4 {
+            gap: 1rem
+        }
+
+        .gap-6 {
+            gap: 1.5rem
+        }
+
+        .gap-2 {
+            gap: 0.5rem
+        }
+
+        .space-x-2> :not([hidden])~ :not([hidden]) {
+            --tw-space-x-reverse: 0;
+            margin-right: calc(0.5rem * var(--tw-space-x-reverse));
+            margin-left: calc(0.5rem * calc(1 - var(--tw-space-x-reverse)))
+        }
+
+        .space-x-3> :not([hidden])~ :not([hidden]) {
+            --tw-space-x-reverse: 0;
+            margin-right: calc(0.75rem * var(--tw-space-x-reverse));
+            margin-left: calc(0.75rem * calc(1 - var(--tw-space-x-reverse)))
+        }
+
+        .space-x-4> :not([hidden])~ :not([hidden]) {
+            --tw-space-x-reverse: 0;
+            margin-right: calc(1rem * var(--tw-space-x-reverse));
+            margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse)))
+        }
+
+        .space-y-4> :not([hidden])~ :not([hidden]) {
+            --tw-space-y-reverse: 0;
+            margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+            margin-bottom: calc(1rem * var(--tw-space-y-reverse))
+        }
+
+        .space-x-1> :not([hidden])~ :not([hidden]) {
+            --tw-space-x-reverse: 0;
+            margin-right: calc(0.25rem * var(--tw-space-x-reverse));
+            margin-left: calc(0.25rem * calc(1 - var(--tw-space-x-reverse)))
+        }
+
+        .space-y-1> :not([hidden])~ :not([hidden]) {
+            --tw-space-y-reverse: 0;
+            margin-top: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+            margin-bottom: calc(0.25rem * var(--tw-space-y-reverse))
+        }
+
+        .overflow-auto {
+            overflow: auto
+        }
+
+        .overflow-hidden {
+            overflow: hidden
+        }
+
+        .overflow-y-auto {
+            overflow-y: auto
+        }
+
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .whitespace-pre-wrap {
+            white-space: pre-wrap
+        }
+
+        .rounded {
+            border-radius: 0.25rem
+        }
+
+        .rounded-full {
+            border-radius: 9999px
+        }
+
+        .rounded-lg {
+            border-radius: 0.5rem
+        }
+
+        .rounded-xl {
+            border-radius: 0.75rem
+        }
+
+        .border {
+            border-width: 1px
+        }
+
+        .border-b {
+            border-bottom-width: 1px
+        }
+
+        .border-b-2 {
+            border-bottom-width: 2px
+        }
+
+        .border-t {
+            border-top-width: 1px
+        }
+
+        .border-gray-600 {
+            --tw-border-opacity: 1;
+            border-color: rgb(75 85 99 / var(--tw-border-opacity, 1))
+        }
+
+        .border-gray-800 {
+            --tw-border-opacity: 1;
+            border-color: rgb(31 41 55 / var(--tw-border-opacity, 1))
+        }
+
+        .border-red-800\/30 {
+            border-color: rgb(153 27 27 / 0.3)
+        }
+
+        .bg-black {
+            --tw-bg-opacity: 1;
+            background-color: rgb(0 0 0 / var(--tw-bg-opacity, 1))
+        }
+
+        .bg-gray-800 {
+            --tw-bg-opacity: 1;
+            background-color: rgb(31 41 55 / var(--tw-bg-opacity, 1))
+        }
+
+        .bg-red-900\/30 {
+            background-color: rgb(127 29 29 / 0.3)
+        }
+
+        .bg-blue-400 {
+            --tw-bg-opacity: 1;
+            background-color: rgb(96 165 250 / var(--tw-bg-opacity, 1))
+        }
+
+        .bg-green-400 {
+            --tw-bg-opacity: 1;
+            background-color: rgb(74 222 128 / var(--tw-bg-opacity, 1))
+        }
+
+        .bg-opacity-70 {
+            --tw-bg-opacity: 0.7
+        }
+
+        .p-2 {
+            padding: 0.5rem
+        }
+
+        .p-4 {
+            padding: 1rem
+        }
+
+        .p-6 {
+            padding: 1.5rem
+        }
+
+        .px-4 {
+            padding-left: 1rem;
+            padding-right: 1rem
+        }
+
+        .py-2 {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem
+        }
+
+        .py-3 {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem
+        }
+
+        .py-4 {
+            padding-top: 1rem;
+            padding-bottom: 1rem
+        }
+
+        .py-8 {
+            padding-top: 2rem;
+            padding-bottom: 2rem
+        }
+
+        .px-2 {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem
+        }
+
+        .px-3 {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem
+        }
+
+        .py-1 {
+            padding-top: 0.25rem;
+            padding-bottom: 0.25rem
+        }
+
+        .pr-2 {
+            padding-right: 0.5rem
+        }
+
+        .pt-4 {
+            padding-top: 1rem
+        }
+
+        .text-center {
+            text-align: center
+        }
+
+        .text-2xl {
+            font-size: 1.5rem;
+            line-height: 2rem
+        }
+
+        .text-3xl {
+            font-size: 1.875rem;
+            line-height: 2.25rem
+        }
+
+        .text-lg {
+            font-size: 1.125rem;
+            line-height: 1.75rem
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+            line-height: 1.25rem
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+            line-height: 1.75rem
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+            line-height: 1rem
+        }
+
+        .font-bold {
+            font-weight: 700
+        }
+
+        .font-medium {
+            font-weight: 500
+        }
+
+        .font-semibold {
+            font-weight: 600
+        }
+
+        .text-blue-500 {
+            --tw-text-opacity: 1;
+            color: rgb(59 130 246 / var(--tw-text-opacity, 1))
+        }
+
+        .text-gray-300 {
+            --tw-text-opacity: 1;
+            color: rgb(209 213 219 / var(--tw-text-opacity, 1))
+        }
+
+        .text-gray-400 {
+            --tw-text-opacity: 1;
+            color: rgb(156 163 175 / var(--tw-text-opacity, 1))
+        }
+
+        .text-green-400 {
+            --tw-text-opacity: 1;
+            color: rgb(74 222 128 / var(--tw-text-opacity, 1))
+        }
+
+        .text-orange-400 {
+            --tw-text-opacity: 1;
+            color: rgb(251 146 60 / var(--tw-text-opacity, 1))
+        }
+
+        .text-red-400 {
+            --tw-text-opacity: 1;
+            color: rgb(248 113 113 / var(--tw-text-opacity, 1))
+        }
+
+        .text-white {
+            --tw-text-opacity: 1;
+            color: rgb(255 255 255 / var(--tw-text-opacity, 1))
+        }
+
+        .placeholder-gray-500::placeholder {
+            --tw-placeholder-opacity: 1;
+            color: rgb(107 114 128 / var(--tw-placeholder-opacity, 1))
+        }
+
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms
+        }
+
+        .transition-colors {
+            transition-property: color, background-color, border-color, fill, stroke, -webkit-text-decoration-color;
+            transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+            transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, -webkit-text-decoration-color;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms
+        }
+
+        .duration-200 {
+            transition-duration: 200ms
+        }
+
+        .hover\:bg-red-900\/40:hover {
+            background-color: rgb(127 29 29 / 0.4)
+        }
+
+        .hover\:text-white:hover {
+            --tw-text-opacity: 1;
+            color: rgb(255 255 255 / var(--tw-text-opacity, 1))
+        }
+
+        .hover\:text-red-300:hover {
+            --tw-text-opacity: 1;
+            color: rgb(252 165 165 / var(--tw-text-opacity, 1))
+        }
+
+        .focus\:outline-none:focus {
+            outline: 2px solid transparent;
+            outline-offset: 2px
+        }
+
+        .focus\:ring-blue-500:focus {
+            --tw-ring-opacity: 1;
+            --tw-ring-color: rgb(59 130 246 / var(--tw-ring-opacity, 1))
+        }
+
+        @media (min-width: 640px) {
+            .sm\:block {
+                display: block
+            }
+
+            .sm\:flex-row {
+                flex-direction: row
+            }
+
+            .sm\:space-y-0> :not([hidden])~ :not([hidden]) {
+                --tw-space-y-reverse: 0;
+                margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse)));
+                margin-bottom: calc(0px * var(--tw-space-y-reverse))
+            }
+        }
+
+        @media (min-width: 768px) {
+            .md\:grid-cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr))
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .lg\:w-1\/3 {
+                width: 33.333333%
+            }
+
+            .lg\:w-2\/3 {
+                width: 66.666667%
+            }
+
+            .lg\:grid-cols-4 {
+                grid-template-columns: repeat(4, minmax(0, 1fr))
+            }
+
+            .lg\:flex-row {
+                flex-direction: row
+            }
+
+            .lg\:items-center {
+                align-items: center
+            }
+
+            .lg\:space-y-0> :not([hidden])~ :not([hidden]) {
+                --tw-space-y-reverse: 0;
+                margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse)));
+                margin-bottom: calc(0px * var(--tw-space-y-reverse))
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+
+    <header class="bg-black border-b border-gray-800">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+                <div class="flex items-center space-x-3">
+                    <div>
+                        <h1 class="text-2xl font-bold">Fana CI/CD Dashboard</h1>
+                        <p class="text-gray-400 text-sm">Manage your deployment pipeline</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <div class="hidden sm:block text-gray-400">
+                        <span id="projectCount">1</span> projects managed
+                    </div>
+                    <button id="logoutBtn"
+                        class="border-2 border-red-600 px-4 py-2 rounded-lg font-medium transition-all duration-200">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+
+    <main class="container mx-auto px-4 py-8">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="glass-card rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Total Projects</p>
+                        <h3 id="totalProjects" class="text-3xl font-bold">1</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-neutral-800 shadow-inner shadow-black rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                            </path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Running</p>
+                        <h3 id="runningProjects" class="text-3xl font-bold text-green-400">1</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-neutral-800 shadow-inner shadow-black rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
+                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Stopped</p>
+                        <h3 id="stoppedProjects" class="text-3xl font-bold text-red-400">0</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-neutral-800 shadow-inner shadow-black rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Building</p>
+                        <h3 id="buildingProjects" class="text-3xl font-bold text-orange-400">0</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-neutral-800 shadow-inner shadow-black rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="flex flex-col lg:flex-row gap-6 mb-8">
+
+            <div class="lg:w-1/3">
+                <div class="glass-card rounded-xl p-6">
+                    <h2 class="text-xl font-bold mb-4" id="formTitle">Add New Project</h2>
+                    <form id="projectForm" class="space-y-4">
+                        <input type="hidden" id="projectId">
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Project Name</label>
+                                <input type="text" id="projectName" required=""
+                                    class="w-full px-4 py-2 rounded-lg dark-input shadow-inner shadow-black placeholder-gray-500 focus:outline-none transition-all duration-200">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Repository URL</label>
+                                <input type="url" id="repoUrl" required=""
+                                    class="w-full px-4 py-2 rounded-lg dark-input shadow-inner shadow-black placeholder-gray-500 focus:outline-none transition-all duration-200">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Branch</label>
+                                <input type="text" id="branch" value="main"
+                                    class="w-full px-4 py-2 rounded-lg dark-input shadow-inner shadow-black placeholder-gray-500 focus:outline-none transition-all duration-200">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Build Command</label>
+                                <input type="text" id="buildCmd" required=""
+                                    class="w-full px-4 py-2 rounded-lg dark-input shadow-inner shadow-black placeholder-gray-500 focus:outline-none transition-all duration-200">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Run Command</label>
+                                <input type="text" id="runCmd" required=""
+                                    class="w-full px-4 py-2 rounded-lg dark-input shadow-inner shadow-black placeholder-gray-500 focus:outline-none transition-all duration-200">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="flex items-center w-full">
+                                <input type="checkbox" id="autoPull"
+                                    class="rounded border-gray-600 bg-gray-800 h-4 w-4 text-blue-500 focus:ring-blue-500">
+                                <label for="autoPull" class="ml-2 text-sm text-gray-400 text-center">Auto Pull</label>
+                            </div>
+                            <div class="flex items-center w-full"> 
+                                <input type="checkbox" id="autoRestart"
+                                    class="rounded border-gray-600 bg-gray-800 h-4 w-4 text-blue-500 focus:ring-blue-500">
+                                <label for="autoRestart" class="ml-2 text-sm text-gray-400 text-center">Auto Restart</label>
+                            </div>
+                        </div>
+
+                        <div id="pullIntervalContainer" class="hidden">
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Pull Interval (minutes)</label>
+                            <input type="number" id="pullInterval" value="5" min="1"
+                                class="w-full px-4 py-2 rounded-lg dark-input shadow-inner shadow-black placeholder-gray-500 focus:outline-none transition-all duration-200">
+                        </div>
+
+                        <div class="flex space-x-3">
+                            <button type="submit" id="submitBtn"
+                                class="flex-1 btn-primary py-3 px-4 rounded-lg font-semibold transition-all duration-200">
+                                Add Project
+                            </button>
+                            <button type="button" id="cancelEditBtn"
+                                class="bg-red-900/30 hover:bg-red-900/40 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 border border-red-800/30 hidden">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+
+            <div class="lg:w-2/3">
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold">Projects</h2>
+                        <div class="flex space-x-2">
+                            <button id="refreshBtn" class="btn-secondary p-2 rounded-lg transition-colors duration-200">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="projectsContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                        <div class="glass-card rounded-xl p-6" data-project-id="project-1760819848599576700">
+                            <div
+                                class="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-3 mb-2">
+                                        <h3 class="text-lg font-semibold text-white">fana</h3>
+                                        <span
+                                            class="status-badge px-3 py-1 rounded-full text-xs font-medium text-white status-running">
+                                            Running
+                                        </span>
+                                        <span class="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">PID:
+                                            278624</span>
+                                    </div>
+                                    <div class="text-sm text-gray-400 space-y-1">
+                                        <div class="flex items-center space-x-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                            </svg>
+                                            <span class="truncate">https://github.com/MasFana/TodoPR</span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                                            </svg>
+                                            <span>Branch: master</span>
+                                        </div>
+                                        <div>Last build: 2025-10-19 04:28:58</div>
+                                        <div>Last run: 2025-10-19 05:59:29</div>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="showLogs('project-1760819848599576700')"
+                                        class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                            </path>
+                                        </svg>
+                                        <span>Logs</span>
+                                    </button>
+                                    <button onclick="editProject('project-1760819848599576700')"
+                                        class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                            </path>
+                                        </svg>
+                                        <span>Edit</span>
+                                    </button>
+                                    <button onclick="runAction('project-1760819848599576700', 'build')"
+                                        class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                        <span>Build</span>
+                                    </button>
+                                    <button onclick="runAction('project-1760819848599576700', 'stop')"
+                                        class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z">
+                                            </path>
+                                        </svg>
+                                        <span>Stop</span>
+                                    </button>
+                                    <button onclick="runAction('project-1760819848599576700', 'pull')"
+                                        class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                            </path>
+                                        </svg>
+                                        <span>Pull</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div
+                                class="mt-4 pt-4 border-t border-gray-800 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-400">
+                                <div class="flex items-center space-x-4">
+                                    <span class="flex items-center space-x-1">
+                                        <div class="w-2 h-2 bg-green-400 rounded-full"></div><span>Auto Pull</span>
+                                    </span>
+                                    <span class="flex items-center space-x-1">
+                                        <div class="w-2 h-2 bg-blue-400 rounded-full"></div><span>Auto Restart</span>
+                                    </span>
+                                </div>
+                                <button onclick="deleteProject('project-1760819848599576700')"
+                                    class="text-red-400 hover:text-red-300 transition-colors duration-200">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                        </path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="logsModal"
+            class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden modal-overlay">
+            <div class="glass-modal rounded-xl w-full max-w-6xl max-h-[90vh] flex flex-col modal-content">
+                <div class="flex justify-between items-center p-6 border-b border-gray-800">
+                    <h3 class="text-lg font-semibold text-white" id="logsModalTitle">Project Logs</h3>
+                    <button id="closeLogsModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-hidden flex flex-col">
+                    <div class="flex border-b border-gray-800">
+                        <button
+                            class="tab-button px-4 py-2 font-medium tab-active border-b-2 transition-colors duration-200"
+                            data-tab="build">Build Logs</button>
+                        <button
+                            class="tab-button px-4 py-2 font-medium tab-inactive border-b-2 transition-colors duration-200"
+                            data-tab="run">Run Logs</button>
+                    </div>
+                    <div class="flex-1 overflow-auto log-container">
+                        <pre id="buildLogsContent"
+                            class="tab-content hidden p-4 h-full whitespace-pre-wrap text-gray-300"></pre>
+                        <pre id="runLogsContent"
+                            class="tab-content hidden p-4 h-full whitespace-pre-wrap text-gray-300"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentProjects = [];
+        let eventSource = null;
+        let currentLogsProjectId = null;
+        let isEditing = false;
+
+        $(document).ready(function () {
+
+            $('#autoPull').change(function () {
+                $('#pullIntervalContainer').toggle(this.checked);
+            });
+
+
+            $('.tab-button').click(function () {
+                const tab = $(this).data('tab');
+                $('.tab-button').removeClass('tab-active').addClass('tab-inactive');
+                $(this).addClass('tab-active').removeClass('tab-inactive');
+
+                $('.tab-content').addClass('hidden');
+                $(`#${tab}LogsContent`).removeClass('hidden');
+
+                if (currentLogsProjectId) {
+                    loadLogs(currentLogsProjectId, tab);
+                }
+            });
+
+
+            $('#closeLogsModal').click(function () {
+                $('#logsModal').addClass('hidden');
+                currentLogsProjectId = null;
+            });
+
+
+            $('#logsModal').click(function (e) {
+                if (e.target === this) {
+                    $(this).addClass('hidden');
+                    currentLogsProjectId = null;
+                }
+            });
+
+
+            $('#logoutBtn').click(function () {
+                $.post('/api/logout', function () {
+                    window.location.reload();
+                });
+            });
+
+
+            $('#refreshBtn').click(function () {
+                loadProjects();
+                $(this).addClass('animate-spin');
+                setTimeout(() => $(this).removeClass('animate-spin'), 1000);
+            });
+
+
+            $('#cancelEditBtn').click(function () {
+                resetForm();
+            });
+
+
+            $('#projectForm').on('submit', function (e) {
+                e.preventDefault();
+
+                const projectData = {
+                    name: $('#projectName').val(),
+                    repo_url: $('#repoUrl').val(),
+                    build_cmd: $('#buildCmd').val(),
+                    run_cmd: $('#runCmd').val(),
+                    auto_pull: $('#autoPull').is(':checked'),
+                    pull_interval: $('#autoPull').is(':checked') ? parseInt($('#pullInterval').val()) : 0,
+                    auto_restart: $('#autoRestart').is(':checked'),
+                    branch: $('#branch').val() || 'main'
+                };
+
+                const projectId = $('#projectId').val();
+                const url = projectId ? `/api/projects/${projectId}` : '/api/projects';
+                const method = projectId ? 'PUT' : 'POST';
+
+                if (projectId) {
+                    projectData.id = projectId;
+                }
+
+                const button = $('#submitBtn');
+                const originalText = button.text();
+
+                button.html('<div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Saving...');
+                button.prop('disabled', true);
+
+                $.ajax({
+                    url: url,
+                    method: method,
+                    contentType: 'application/json',
+                    data: JSON.stringify(projectData),
+                    success: function (project) {
+                        resetForm();
+                        loadProjects();
+                        button.text(originalText).prop('disabled', false);
+                    },
+                    error: function (xhr) {
+                        alert('Error saving project: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Unknown error'));
+                        button.text(originalText).prop('disabled', false);
+                    }
+                });
+            });
+
+
+            connectSSE();
+        });
+
+        function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/api/events');
+
+            eventSource.onmessage = function (event) {
+                const projects = JSON.parse(event.data);
+                currentProjects = projects;
+                updateProjectsDisplay(projects);
+                updateStats(projects);
+            };
+
+            eventSource.onerror = function () {
+                console.error('SSE error, reconnecting...');
+                setTimeout(connectSSE, 5000);
+            };
+        }
+
+        function loadProjects() {
+            $.get('/api/projects', function (projects) {
+                currentProjects = projects;
+                updateProjectsDisplay(projects);
+                updateStats(projects);
+            }).fail(function () {
+                $('#projectsContainer').html('<div class="text-center py-8 text-red-400">Failed to load projects</div>');
+            });
+        }
+
+        function updateStats(projects) {
+            const total = projects.length;
+            const running = projects.filter(p => p.status === 'Running').length;
+            const stopped = projects.filter(p => p.status === 'Stopped').length;
+            const building = projects.filter(p => p.status.includes('Building') || p.status.includes('Building')).length;
+
+            $('#totalProjects').text(total);
+            $('#runningProjects').text(running);
+            $('#stoppedProjects').text(stopped);
+            $('#buildingProjects').text(building);
+            $('#projectCount').text(total);
+        }
+
+        function updateProjectsDisplay(projects) {
+            if (projects.length === 0) {
+                $('#projectsContainer').html(`
+                    <div class="text-center py-8 text-gray-400">
+                        <svg class="w-12 h-12 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                        <p>No projects yet. Add your first project to get started!</p>
+                    </div>
+                `);
+                return;
+            }
+
+            const projectsHtml = projects.map(project => `
+                <div class="glass-card rounded-xl p-6" data-project-id="${project.id}">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <h3 class="text-lg font-semibold text-white">${escapeHtml(project.name)}</h3>
+                                <span class="status-badge px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusClass(project.status)}">
+                                    ${project.status}
+                                </span>
+                                ${project.pid ? `<span class="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">PID: ${project.pid}</span>` : ''}
+                            </div>
+                            <div class="text-sm text-gray-400 space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                    </svg>
+                                    <span class="truncate">${escapeHtml(project.repo_url)}</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                                    </svg>
+                                    <span>Branch: ${escapeHtml(project.branch || 'main')}</span>
+                                </div>
+                                ${project.last_build ? `<div>Last build: ${project.last_build}</div>` : ''}
+                                ${project.last_run ? `<div>Last run: ${project.last_run}</div>` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="showLogs('${project.id}')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <span>Logs</span>
+                            </button>
+                            <button onclick="editProject('${project.id}')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                                <span>Edit</span>
+                            </button>
+                            <button onclick="runAction('${project.id}', 'build')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                </svg>
+                                <span>Build</span>
+                            </button>
+                            ${project.status === 'Running' ?
+                    `<button onclick="runAction('${project.id}', 'stop')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+                                    </svg>
+                                    <span>Stop</span>
+                                </button>` :
+                    `<button onclick="runAction('${project.id}', 'run')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                                    </svg>
+                                    <span>Run</span>
+                                </button>`
+                }
+                            <button onclick="runAction('${project.id}', 'pull')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                </svg>
+                                <span>Pull</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-gray-800 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-400">
+                        <div class="flex items-center space-x-4">
+                            ${project.auto_pull ? `<span class="flex items-center space-x-1"><div class="w-2 h-2 bg-green-400 rounded-full"></div><span>Auto Pull</span></span>` : ''}
+                            ${project.auto_restart ? `<span class="flex items-center space-x-1"><div class="w-2 h-2 bg-blue-400 rounded-full"></div><span>Auto Restart</span></span>` : ''}
+                        </div>
+                        <button onclick="deleteProject('${project.id}')" class="text-red-400 hover:text-red-300 transition-colors duration-200">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            $('#projectsContainer').html(projectsHtml);
+        }
+
+        function getStatusClass(status) {
+            const statusMap = {
+                'Running': 'status-running',
+                'Stopped': 'status-stopped',
+                'Building': 'status-building',
+                'Built': 'status-built',
+                'Error': 'status-error',
+                'Cloning': 'status-building',
+                'Cloned': 'status-built',
+                'Pulling': 'status-building',
+                'Pulled': 'status-built',
+                'Build Failed': 'status-error'
+            };
+            return statusMap[status] || 'bg-gray-600';
+        }
+
+        function runAction(projectId, action) {
+            const endpoints = {
+                'build': '/api/build/',
+                'run': '/api/run/',
+                'stop': '/api/stop/',
+                'pull': '/api/pull/'
+            };
+
+            $.post(endpoints[action] + projectId)
+                .fail(function () {
+                    alert(`Failed to ${action} project`);
+                });
+        }
+
+        function editProject(projectId) {
+            const project = currentProjects.find(p => p.id === projectId);
+            if (!project) return;
+
+
+            $('#projectId').val(project.id);
+            $('#projectName').val(project.name);
+            $('#repoUrl').val(project.repo_url);
+            $('#branch').val(project.branch || 'main');
+            $('#buildCmd').val(project.build_cmd);
+            $('#runCmd').val(project.run_cmd);
+            $('#autoPull').prop('checked', project.auto_pull);
+            $('#autoRestart').prop('checked', project.auto_restart);
+            $('#pullInterval').val(project.pull_interval || 5);
+
+
+            $('#pullIntervalContainer').toggle(project.auto_pull);
+
+
+            $('#formTitle').text('Edit Project');
+            $('#submitBtn').text('Update Project');
+            $('#cancelEditBtn').removeClass('hidden');
+
+            isEditing = true;
+
+
+            $('html, body').animate({
+                scrollTop: $('#projectForm').offset().top - 100
+            }, 500);
+        }
+
+        function resetForm() {
+            $('#projectForm')[0].reset();
+            $('#projectId').val('');
+            $('#pullIntervalContainer').addClass('hidden');
+            $('#formTitle').text('Add New Project');
+            $('#submitBtn').text('Add Project');
+            $('#cancelEditBtn').addClass('hidden');
+            isEditing = false;
+        }
+
+        function showLogs(projectId) {
+            currentLogsProjectId = projectId;
+            const project = currentProjects.find(p => p.id === projectId);
+            $('#logsModalTitle').text(`Logs - ${project.name}`);
+            $('#logsModal').removeClass('hidden');
+
+
+            $('.tab-button').removeClass('tab-active').addClass('tab-inactive');
+            $('.tab-button[data-tab="build"]').addClass('tab-active').removeClass('tab-inactive');
+
+            $('.tab-content').addClass('hidden');
+            $('#buildLogsContent').removeClass('hidden');
+
+            loadLogs(projectId, 'build');
+        }
+
+        function loadLogs(projectId, type) {
+            $.get(`/api/logs/${projectId}?type=${type}&lines=100`, function (logs) {
+                const contentElement = $(`#${type}LogsContent`);
+                contentElement.text(logs.join('\n'));
+
+
+                const container = contentElement.parent();
+                container.scrollTop(container[0].scrollHeight);
+            });
+        }
+
+        function deleteProject(projectId) {
+            if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+                $.ajax({
+                    url: `/api/projects/${projectId}`,
+                    method: 'DELETE',
+                    success: function () {
+                        loadProjects();
+
+                        if ($('#projectId').val() === projectId) {
+                            resetForm();
+                        }
+                    },
+                    error: function () {
+                        alert('Failed to delete project');
+                    }
+                });
+            }
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+
+        $(document).keydown(function (e) {
+            if (e.key === 'Escape') {
+                $('#logsModal').addClass('hidden');
+                currentLogsProjectId = null;
+            }
+        });
+    </script>
+
+
+    <div id="tailwind-resolution-extension-root" style="position: fixed; z-index: 9999;" class="dark"><template
+            shadowrootmode="open">
+            <style type="text/css">
+                *,
+                :before,
+                :after {
+                    box-sizing: border-box;
+                    border-width: 0;
+                    border-style: solid;
+                    border-color: #e5e7eb
+                }
+
+                :before,
+                :after {
+                    --tw-content: ""
+                }
+
+                html,
+                :host {
+                    line-height: 1.5;
+                    -webkit-text-size-adjust: 100%;
+                    -moz-tab-size: 4;
+                    -o-tab-size: 4;
+                    tab-size: 4;
+                    font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", Segoe UI Symbol, "Noto Color Emoji";
+                    font-feature-settings: normal;
+                    font-variation-settings: normal;
+                    -webkit-tap-highlight-color: transparent
+                }
+
+                body {
+                    margin: 0;
+                    line-height: inherit
+                }
+
+                hr {
+                    height: 0;
+                    color: inherit;
+                    border-top-width: 1px
+                }
+
+                abbr:where([title]) {
+                    -webkit-text-decoration: underline dotted;
+                    text-decoration: underline dotted
+                }
+
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6 {
+                    font-size: inherit;
+                    font-weight: inherit
+                }
+
+                a {
+                    color: inherit;
+                    text-decoration: inherit
+                }
+
+                b,
+                strong {
+                    font-weight: bolder
+                }
+
+                code,
+                kbd,
+                samp,
+                pre {
+                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+                    font-feature-settings: normal;
+                    font-variation-settings: normal;
+                    font-size: 1em
+                }
+
+                small {
+                    font-size: 80%
+                }
+
+                sub,
+                sup {
+                    font-size: 75%;
+                    line-height: 0;
+                    position: relative;
+                    vertical-align: baseline
+                }
+
+                sub {
+                    bottom: -.25em
+                }
+
+                sup {
+                    top: -.5em
+                }
+
+                table {
+                    text-indent: 0;
+                    border-color: inherit;
+                    border-collapse: collapse
+                }
+
+                button,
+                input,
+                optgroup,
+                select,
+                textarea {
+                    font-family: inherit;
+                    font-feature-settings: inherit;
+                    font-variation-settings: inherit;
+                    font-size: 100%;
+                    font-weight: inherit;
+                    line-height: inherit;
+                    letter-spacing: inherit;
+                    color: inherit;
+                    margin: 0;
+                    padding: 0
+                }
+
+                button,
+                select {
+                    text-transform: none
+                }
+
+                button,
+                input:where([type=button]),
+                input:where([type=reset]),
+                input:where([type=submit]) {
+                    -webkit-appearance: button;
+                    background-color: transparent;
+                    background-image: none
+                }
+
+                :-moz-focusring {
+                    outline: auto
+                }
+
+                :-moz-ui-invalid {
+                    box-shadow: none
+                }
+
+                progress {
+                    vertical-align: baseline
+                }
+
+                ::-webkit-inner-spin-button,
+                ::-webkit-outer-spin-button {
+                    height: auto
+                }
+
+                [type=search] {
+                    -webkit-appearance: textfield;
+                    outline-offset: -2px
+                }
+
+                ::-webkit-search-decoration {
+                    -webkit-appearance: none
+                }
+
+                ::-webkit-file-upload-button {
+                    -webkit-appearance: button;
+                    font: inherit
+                }
+
+                summary {
+                    display: list-item
+                }
+
+                blockquote,
+                dl,
+                dd,
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6,
+                hr,
+                figure,
+                p,
+                pre {
+                    margin: 0
+                }
+
+                fieldset {
+                    margin: 0;
+                    padding: 0
+                }
+
+                legend {
+                    padding: 0
+                }
+
+                ol,
+                ul,
+                menu {
+                    list-style: none;
+                    margin: 0;
+                    padding: 0
+                }
+
+                dialog {
+                    padding: 0
+                }
+
+                textarea {
+                    resize: vertical
+                }
+
+                input::-moz-placeholder,
+                textarea::-moz-placeholder {
+                    opacity: 1;
+                    color: #9ca3af
+                }
+
+                input::placeholder,
+                textarea::placeholder {
+                    opacity: 1;
+                    color: #9ca3af
+                }
+
+                button,
+                [role=button] {
+                    cursor: pointer
+                }
+
+                :disabled {
+                    cursor: default
+                }
+
+                img,
+                svg,
+                video,
+                canvas,
+                audio,
+                iframe,
+                embed,
+                object {
+                    display: block;
+                    vertical-align: middle
+                }
+
+                img,
+                video {
+                    max-width: 100%;
+                    height: auto
+                }
+
+                [hidden] {
+                    display: none
+                }
+
+                *,
+                :before,
+                :after {
+                    --tw-border-spacing-x: 0;
+                    --tw-border-spacing-y: 0;
+                    --tw-translate-x: 0;
+                    --tw-translate-y: 0;
+                    --tw-rotate: 0;
+                    --tw-skew-x: 0;
+                    --tw-skew-y: 0;
+                    --tw-scale-x: 1;
+                    --tw-scale-y: 1;
+                    --tw-pan-x: ;
+                    --tw-pan-y: ;
+                    --tw-pinch-zoom: ;
+                    --tw-scroll-snap-strictness: proximity;
+                    --tw-gradient-from-position: ;
+                    --tw-gradient-via-position: ;
+                    --tw-gradient-to-position: ;
+                    --tw-ordinal: ;
+                    --tw-slashed-zero: ;
+                    --tw-numeric-figure: ;
+                    --tw-numeric-spacing: ;
+                    --tw-numeric-fraction: ;
+                    --tw-ring-inset: ;
+                    --tw-ring-offset-width: 0px;
+                    --tw-ring-offset-color: #fff;
+                    --tw-ring-color: rgb(59 130 246 / .5);
+                    --tw-ring-offset-shadow: 0 0 #0000;
+                    --tw-ring-shadow: 0 0 #0000;
+                    --tw-shadow: 0 0 #0000;
+                    --tw-shadow-colored: 0 0 #0000;
+                    --tw-blur: ;
+                    --tw-brightness: ;
+                    --tw-contrast: ;
+                    --tw-grayscale: ;
+                    --tw-hue-rotate: ;
+                    --tw-invert: ;
+                    --tw-saturate: ;
+                    --tw-sepia: ;
+                    --tw-drop-shadow: ;
+                    --tw-backdrop-blur: ;
+                    --tw-backdrop-brightness: ;
+                    --tw-backdrop-contrast: ;
+                    --tw-backdrop-grayscale: ;
+                    --tw-backdrop-hue-rotate: ;
+                    --tw-backdrop-invert: ;
+                    --tw-backdrop-opacity: ;
+                    --tw-backdrop-saturate: ;
+                    --tw-backdrop-sepia: ;
+                    --tw-contain-size: ;
+                    --tw-contain-layout: ;
+                    --tw-contain-paint: ;
+                    --tw-contain-style:
+                }
+
+                ::backdrop {
+                    --tw-border-spacing-x: 0;
+                    --tw-border-spacing-y: 0;
+                    --tw-translate-x: 0;
+                    --tw-translate-y: 0;
+                    --tw-rotate: 0;
+                    --tw-skew-x: 0;
+                    --tw-skew-y: 0;
+                    --tw-scale-x: 1;
+                    --tw-scale-y: 1;
+                    --tw-pan-x: ;
+                    --tw-pan-y: ;
+                    --tw-pinch-zoom: ;
+                    --tw-scroll-snap-strictness: proximity;
+                    --tw-gradient-from-position: ;
+                    --tw-gradient-via-position: ;
+                    --tw-gradient-to-position: ;
+                    --tw-ordinal: ;
+                    --tw-slashed-zero: ;
+                    --tw-numeric-figure: ;
+                    --tw-numeric-spacing: ;
+                    --tw-numeric-fraction: ;
+                    --tw-ring-inset: ;
+                    --tw-ring-offset-width: 0px;
+                    --tw-ring-offset-color: #fff;
+                    --tw-ring-color: rgb(59 130 246 / .5);
+                    --tw-ring-offset-shadow: 0 0 #0000;
+                    --tw-ring-shadow: 0 0 #0000;
+                    --tw-shadow: 0 0 #0000;
+                    --tw-shadow-colored: 0 0 #0000;
+                    --tw-blur: ;
+                    --tw-brightness: ;
+                    --tw-contrast: ;
+                    --tw-grayscale: ;
+                    --tw-hue-rotate: ;
+                    --tw-invert: ;
+                    --tw-saturate: ;
+                    --tw-sepia: ;
+                    --tw-drop-shadow: ;
+                    --tw-backdrop-blur: ;
+                    --tw-backdrop-brightness: ;
+                    --tw-backdrop-contrast: ;
+                    --tw-backdrop-grayscale: ;
+                    --tw-backdrop-hue-rotate: ;
+                    --tw-backdrop-invert: ;
+                    --tw-backdrop-opacity: ;
+                    --tw-backdrop-saturate: ;
+                    --tw-backdrop-sepia: ;
+                    --tw-contain-size: ;
+                    --tw-contain-layout: ;
+                    --tw-contain-paint: ;
+                    --tw-contain-style:
+                }
+
+                .fixed {
+                    position: fixed
+                }
+
+                .block {
+                    display: block
+                }
+
+                .flex {
+                    display: flex
+                }
+
+                .hidden {
+                    display: none
+                }
+
+                .h-4 {
+                    height: 16px
+                }
+
+                .h-8 {
+                    height: 32px
+                }
+
+                .w-4 {
+                    width: 16px
+                }
+
+                .w-fit {
+                    width: -moz-fit-content;
+                    width: fit-content
+                }
+
+                .resize {
+                    resize: both
+                }
+
+                .flex-col {
+                    flex-direction: column
+                }
+
+                .items-center {
+                    align-items: center
+                }
+
+                .justify-center {
+                    justify-content: center
+                }
+
+                .space-x-2>:not([hidden])~:not([hidden]) {
+                    --tw-space-x-reverse: 0;
+                    margin-right: calc(8px * var(--tw-space-x-reverse));
+                    margin-left: calc(8px * calc(1 - var(--tw-space-x-reverse)))
+                }
+
+                .space-y-2>:not([hidden])~:not([hidden]) {
+                    --tw-space-y-reverse: 0;
+                    margin-top: calc(8px * calc(1 - var(--tw-space-y-reverse)));
+                    margin-bottom: calc(8px * var(--tw-space-y-reverse))
+                }
+
+                .overflow-hidden {
+                    overflow: hidden
+                }
+
+                .rounded-md {
+                    border-radius: 6px
+                }
+
+                .rounded-xl {
+                    border-radius: 12px
+                }
+
+                .bg-stone-200 {
+                    --tw-bg-opacity: 1;
+                    background-color: rgb(231 229 228 / var(--tw-bg-opacity))
+                }
+
+                .bg-stone-50 {
+                    --tw-bg-opacity: 1;
+                    background-color: rgb(250 250 249 / var(--tw-bg-opacity))
+                }
+
+                .p-2 {
+                    padding: 8px
+                }
+
+                .px-2 {
+                    padding-left: 8px;
+                    padding-right: 8px
+                }
+
+                .py-1 {
+                    padding-top: 4px;
+                    padding-bottom: 4px
+                }
+
+                .text-sm {
+                    font-size: 14px;
+                    line-height: 20px
+                }
+
+                .text-xs {
+                    font-size: 12px;
+                    line-height: 16px
+                }
+
+                .font-medium {
+                    font-weight: 500
+                }
+
+                .uppercase {
+                    text-transform: uppercase
+                }
+
+                .text-gray-300 {
+                    --tw-text-opacity: 1;
+                    color: rgb(209 213 219 / var(--tw-text-opacity))
+                }
+
+                .text-gray-400 {
+                    --tw-text-opacity: 1;
+                    color: rgb(156 163 175 / var(--tw-text-opacity))
+                }
+
+                .text-gray-900 {
+                    --tw-text-opacity: 1;
+                    color: rgb(17 24 39 / var(--tw-text-opacity))
+                }
+
+                .underline {
+                    text-decoration-line: underline
+                }
+
+                .shadow-\[rgba\(0\,_0\,_0\,_0\.24\)_0px_3px_8px\] {
+                    --tw-shadow: rgba(0, 0, 0, .24) 0px 3px 8px;
+                    --tw-shadow-colored: 0px 3px 8px var(--tw-shadow-color);
+                    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)
+                }
+
+                .shadow-inner {
+                    --tw-shadow: inset 0 2px 4px 0 rgb(0 0 0 / .05);
+                    --tw-shadow-colored: inset 0 2px 4px 0 var(--tw-shadow-color);
+                    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)
+                }
+
+                .transition-all {
+                    transition-property: all;
+                    transition-timing-function: cubic-bezier(.4, 0, .2, 1);
+                    transition-duration: .15s
+                }
+
+                .duration-200 {
+                    transition-duration: .2s
+                }
+
+                .hover\:h-24:hover {
+                    height: 96px
+                }
+
+                .hover\:cursor-pointer:hover {
+                    cursor: pointer
+                }
+
+                .hover\:items-start:hover {
+                    align-items: flex-start
+                }
+
+                .group:hover .group-hover\:block {
+                    display: block
+                }
+
+                .group:hover .group-hover\:flex {
+                    display: flex
+                }
+
+                .group:hover .group-hover\:items-center {
+                    align-items: center
+                }
+
+                .group:hover .group-hover\:space-x-2>:not([hidden])~:not([hidden]) {
+                    --tw-space-x-reverse: 0;
+                    margin-right: calc(8px * var(--tw-space-x-reverse));
+                    margin-left: calc(8px * calc(1 - var(--tw-space-x-reverse)))
+                }
+
+                .dark\:bg-gray-700:where(.dark, .dark *) {
+                    --tw-bg-opacity: 1;
+                    background-color: rgb(55 65 81 / var(--tw-bg-opacity))
+                }
+
+                .dark\:bg-gray-800:where(.dark, .dark *) {
+                    --tw-bg-opacity: 1;
+                    background-color: rgb(31 41 55 / var(--tw-bg-opacity))
+                }
+
+                .dark\:text-gray-50:where(.dark, .dark *) {
+                    --tw-text-opacity: 1;
+                    color: rgb(249 250 251 / var(--tw-text-opacity))
+                }
+            </style>
+            <section
+                class="overflow-hidden flex flex-col items-center space-y-2 hover:items-start justify-center group w-fit h-8 px-2 py-1 text-sm fixed rounded-xl transition-all duration-200 shadow-[rgba(0,_0,_0,_0.24)_0px_3px_8px] hover:h-24 dark:bg-gray-700 bg-stone-50 dark:text-gray-50 text-gray-900 dark"
+                style="right: 2.5rem; bottom: 2.5rem;">
+                <div class="flex items-center justify-center group-hover:space-x-2">
+                    <div class="hidden hover:cursor-pointer group-hover:block"><svg xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 text-gray-300">
+                            <path fill-rule="evenodd"
+                                d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-1.72 6.97a.75.75 0 1 0-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06L12 13.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L13.06 12l1.72-1.72a.75.75 0 1 0-1.06-1.06L12 10.94l-1.72-1.72Z"
+                                clip-rule="evenodd"></path>
+                        </svg></div>
+                    <div class="flex items-center justify-center font-medium space-x-2">
+                        <p>1300 x 1120</p>
+                        <p class="text-gray-400">|</p>
+                        <div>
+                            <p class="block uppercase">xl</p>
+                        </div>
+                        <div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                class="w-4 h-4">
+                                <path
+                                    d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16">
+                                </path>
+                            </svg></div>
+                    </div>
+                </div>
+                <div
+                    class="hidden p-2 space-x-2 rounded-md shadow-inner dark:bg-gray-800 bg-stone-200 dark:text-gray-50 text-gray-900 group-hover:flex group-hover:items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                        <path fill-rule="evenodd"
+                            d="M15.75 2.25H21a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V4.81L8.03 17.03a.75.75 0 0 1-1.06-1.06L19.19 3.75h-3.44a.75.75 0 0 1 0-1.5Zm-10.5 4.5a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 1.5 1.5h10.5a1.5 1.5 0 0 0 1.5-1.5V10.5a.75.75 0 0 1 1.5 0v8.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V8.25a3 3 0 0 1 3-3h8.25a.75.75 0 0 1 0 1.5H5.25Z"
+                            clip-rule="evenodd"></path>
+                    </svg><a class="text-xs underline" target="_blank"
+                        href="https://tailwindcss.com/docs/responsive-design">Responsive design docs</a></div>
+            </section>
+        </template></div>
+</body><rq-implicit-test-rule-widget class="rq-element" style="display: none;" draggable="true"><template
+        shadowrootmode="closed">
+        <style>
+            :host {
+                position: fixed !important;
+                z-index: 2147483647 !important;
+                top: 16px;
+                right: 16px;
+            }
+
+            #container {
+                border-radius: 1rem;
+                padding: 12px 1rem;
+                display: flex;
+                flex-direction: column;
+                color: #fff;
+                font-family: system-ui;
+                background: #1a1a1a;
+                box-shadow: 0px 0px 0px 4px rgba(255, 255, 255, 0.16), 0px 16px 32px 0px rgba(0, 0, 0, 0.24);
+                border: 1px solid #5c5b5b;
+                cursor: move;
+                width: 420px;
+                transition: all 0.2s;
+                position: relative;
+                overflow-x: hidden;
+            }
+
+            #container.minimized {
+                width: fit-content;
+                height: 56px;
+                padding: 6px;
+                border-radius: 20px;
+            }
+
+            #container.minimized #test-rule-container,
+            #container.minimized #heading-container,
+            #container.minimized #info-container {
+                display: none;
+            }
+
+            #rule-name {
+                font-size: 12px;
+                margin: 4px 0;
+                font-weight: bolder;
+                line-height: 1.4;
+                max-width: 290px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            #heading-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 4px;
+            }
+
+            #logo-container {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            #heading-container div {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-content: center;
+            }
+
+            #actions-container {
+                display: flex;
+                flex-direction: row;
+                gap: 4px;
+            }
+
+            #actions-container button {
+                width: 32px;
+                height: 32px;
+                background: none;
+                border: none;
+                color: #fff;
+                transition: all 0.2s;
+                cursor: pointer;
+                border-radius: 4px;
+                padding: 8px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                flex-shrink: 0;
+            }
+
+            #actions-container #close-button svg {
+                width: 10px;
+                height: 10px;
+            }
+
+            #actions-container button:hover {
+                background: #383838;
+            }
+
+            #explicit-widget-container {
+                background: #282828;
+                border-radius: 8px;
+                padding: 12px;
+                margin-top: 8px;
+            }
+
+            #implicit-widget-container {
+                padding: 0 4px;
+                margin-top: 8px;
+            }
+
+            #rule-status-container {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            #test-rule-details {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 4px;
+            }
+
+            #info-container {
+                display: flex;
+                gap: 6px;
+                margin-top: 8px;
+                padding: 8px 0px;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            #info-icon {
+                align-self: flex-start;
+                width: 16px;
+                height: 16px;
+                color: #bbb;
+                flex-shrink: 0;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            #info-text {
+                color: #fff;
+                font-size: 11px;
+                line-height: 17px;
+            }
+
+            #info-text .link {
+                color: #639ff9;
+                font-size: inherit;
+                line-height: 17px;
+                text-decoration-line: underline;
+                text-decoration-style: solid;
+            }
+
+            #rule-status-comment {
+                align-self: center;
+            }
+
+            #heading-logo {
+                height: 16px;
+                width: 16px;
+            }
+
+            #logo-text {
+                color: #fff;
+                font-size: 11px;
+                font-weight: 500;
+            }
+
+            #view-result-btn {
+                all: unset;
+                background: #1e69ff;
+                color: #fff;
+                border-radius: 4px;
+                padding: 4px 12px;
+                font-size: 12px;
+            }
+
+            #view-result-btn:hover {
+                cursor: pointer;
+                border-color: #0f4cd9;
+                background: #0f4cd9;
+            }
+
+            #rule-status {
+                display: flex;
+                flex-wrap: nowrap;
+                justify-content: center;
+                gap: 4px;
+            }
+
+            #rule-applied-status,
+            #rule-not-applied-status {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                letter-spacing: 1px;
+                font-size: 10px;
+                font-weight: 500;
+                margin-top: -3px;
+            }
+
+            #rule-applied-status {
+                color: #28c07a;
+            }
+
+            #rule-not-applied-status {
+                color: #e09400;
+            }
+
+            #minimized-details {
+                display: none;
+                pointer-events: none;
+                flex-direction: column;
+                justify-content: space-between;
+                align-items: center;
+                gap: 3px;
+            }
+
+            #minimized-details.visible {
+                display: flex;
+                pointer-events: auto;
+            }
+
+            #minimized-logo svg {
+                height: 16px;
+                width: 16px;
+            }
+
+            #test-rule-minimized-btn {
+                padding: 0;
+                background: transparent;
+                border: none;
+            }
+
+            #test-rule-minimized-btn span {
+                padding: 6px;
+                border-radius: 50%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                cursor: pointer;
+            }
+
+            #test-rule-minimized-btn span svg {
+                height: 20px;
+                width: 20px;
+            }
+
+            .secondary-text {
+                font-size: 11px;
+                color: #b0b0b5b3;
+            }
+
+            .hidden {
+                display: none !important;
+            }
+
+            a {
+                color: #9370db;
+            }
+
+            .warning {
+                background: #5c3111;
+            }
+
+            .success {
+                background: #104b2f;
+            }
+
+            #applied-rules-list {
+                margin-top: 8px;
+                max-height: 200px;
+                overflow-y: auto;
+                padding-right: 4px;
+            }
+
+            #applied-rules-list::-webkit-scrollbar {
+                width: 8px;
+                background: transparent;
+            }
+
+            #applied-rules-list::-webkit-scrollbar-thumb {
+                background: #353535;
+                border-radius: 8px;
+            }
+
+            #applied-rules-list-header {
+                font-size: 13px;
+                color: #fff;
+                font-weight: 500;
+            }
+
+            .applied-rule-list-item {
+                border-radius: 8px;
+                background: #282828;
+                padding: 12px;
+                color: #fff;
+                font-size: 13px;
+                font-weight: 500;
+                letter-spacing: 0.25px;
+                margin-top: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .applied-rule-list-item:hover {
+                background: #383838;
+            }
+
+            .applied-rule-list-item:hover .applied-rule-arrow-icon {
+                opacity: 1;
+            }
+
+            .applied-rule-list-item:first-child {
+                margin-top: 0;
+            }
+
+            .applied-rule-item-details {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .applied-rule-icon {
+                align-self: center;
+            }
+
+            .applied-rule-icon svg {
+                width: 14px;
+                height: 14px;
+                position: relative;
+                top: 2px;
+            }
+
+            .applied-rule-arrow-icon {
+                transform: scale(1.2);
+                align-self: center;
+                transition: 0.2s all;
+                opacity: 0;
+            }
+
+            .applied-rule-name {
+                max-width: 300px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            #settings-button {
+                position: relative;
+            }
+
+            #settings-button[data-tooltip]:hover::after {
+                content: attr(data-tooltip);
+
+                position: absolute;
+                z-index: 1;
+                right: 0px;
+                top: 34px;
+                width: 158px;
+                max-width: 232px;
+                padding: 6px 12px;
+                color: #fff;
+                font-size: 13px;
+                font-style: normal;
+                font-weight: 400;
+                line-height: 150%;
+                border-radius: 4px;
+                background: #000;
+                box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.16);
+            }
+
+            .test-rule-widget-progress-bar {
+                height: 6px;
+                background: #3c7ff3;
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+
+                animation-name: progressBar;
+                animation-delay: 50ms;
+                animation-direction: normal;
+                animation-duration: 5s;
+                animation-fill-mode: forwards;
+                animation-play-state: running;
+                animation-timing-function: linear;
+            }
+
+            #container:hover .test-rule-widget-progress-bar {
+                animation-play-state: paused;
+            }
+
+            @keyframes progressBar {
+                from {
+                    width: 100%;
+                }
+
+                to {
+                    width: 0%;
+                }
+            }
+        </style>
+        <div id="container">
+            <div id="minimized-details">
+                <div id="minimized-logo"><svg width="251" height="251" viewBox="0 0 251 251" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M124.408 245.868V188.238C104.504 188.529 82.7544 186.943 60.1611 182.339L60.0545 182.235V216.575C60.0545 223.437 60.7942 228.978 62.2736 233.201C63.7529 237.423 65.8487 240.722 68.5609 243.097C71.5197 245.472 75.0949 247.055 79.2864 247.847C83.7246 248.903 88.7791 249.43 94.4501 249.43C100.121 249.43 105.792 249.035 111.463 248.243C117.381 247.451 121.695 246.66 124.408 245.868Z"
+                            fill="white"></path>
+                        <path
+                            d="M124.408 169.866H127.147C152.451 169.356 180.05 165.599 203.571 154.848L203.554 154.824C214.403 148.49 223.773 139.518 231.663 127.906C239.553 116.295 243.498 102.308 243.498 85.9467C243.498 59.821 234.868 39.1052 217.609 23.7992C200.349 8.4932 174.707 0.84021 140.681 0.84021C128.106 0.84021 116.271 1.6319 105.176 3.21527C94.0803 4.53475 84.341 6.77789 75.9578 9.94465C71.0266 11.7919 67.0816 14.2989 64.1228 17.4657C61.4106 20.3685 60.0545 24.5909 60.0545 30.1327V96.5095C71.3817 98.242 114.382 101.954 124.038 101.543V57.8418C126.75 57.314 129.216 56.9182 131.435 56.6543C133.654 56.3904 136.612 56.2584 140.311 56.2584C153.379 56.2584 162.871 58.8974 168.789 64.1753C174.953 69.1893 178.035 76.7103 178.035 86.7384C178.035 96.7664 175.323 104.419 169.899 109.697C164.474 114.711 157.077 117.218 147.708 117.218H124.038V117.008C123.974 117.109 123.915 117.21 123.861 117.313C87.9797 115.588 66.1922 114.066 60.0404 113.204L60.0399 113.194L42.9936 111.502C41.4373 111.348 40.2998 109.961 40.4529 108.404L41.3754 99.0229C41.6423 96.3086 38.2948 94.8199 36.4615 96.8375L0.888601 135.986C-0.0859492 137.058 -0.0924867 138.694 0.873451 139.776L29.4492 171.786C31.0921 173.627 34.1369 172.635 34.3782 170.181L35.0406 163.445C35.2015 161.809 36.7162 160.655 38.336 160.934L60.0545 164.671V164.802L60.1611 164.695C73.4489 166.933 97.4782 170.207 124.408 169.908V169.866Z"
+                            fill="white"></path>
+                        <path
+                            d="M175.076 223.305L153.644 186.439C181.486 183.412 203.494 177.208 215.783 172.246C220.496 178.807 225.172 185.139 229.813 191.241C238.443 202.589 245.224 212.881 250.155 222.117C247.689 231.354 243.128 238.479 236.471 243.493C230.06 248.243 222.786 250.618 214.65 250.618C209.225 250.618 204.541 249.958 200.596 248.639C196.651 247.319 193.199 245.472 190.24 243.097C187.281 240.722 184.569 237.819 182.103 234.388C179.638 230.958 177.295 227.263 175.076 223.305Z"
+                            fill="white"></path>
+                    </svg></div>
+                <button id="test-rule-minimized-btn"><span class="success"><svg width="16" height="16"
+                            viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <mask id="mask0_2834_1705" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0"
+                                width="16" height="16">
+                                <rect width="16" height="16" fill="#D9D9D9"></rect>
+                            </mask>
+                            <g mask="url(#mask0_2834_1705)">
+                                <path
+                                    d="M7.13333 10.4833L11.1667 6.46667L10.2 5.5L7.13333 8.56667L5.76667 7.2L4.81667 8.16667L7.13333 10.4833ZM8 14.5333C7.1 14.5333 6.25 14.3667 5.45 14.0333C4.66111 13.6889 3.96667 13.2222 3.36667 12.6333C2.77778 12.0333 2.31111 11.3389 1.96667 10.55C1.63333 9.75 1.46667 8.9 1.46667 8C1.46667 7.08889 1.63333 6.23889 1.96667 5.45C2.31111 4.66111 2.77778 3.97222 3.36667 3.38333C3.96667 2.78333 4.66111 2.31667 5.45 1.98333C6.25 1.63889 7.1 1.46667 8 1.46667C8.91111 1.46667 9.76111 1.63889 10.55 1.98333C11.3389 2.31667 12.0278 2.78333 12.6167 3.38333C13.2167 3.97222 13.6833 4.66111 14.0167 5.45C14.3611 6.23889 14.5333 7.08889 14.5333 8C14.5333 8.9 14.3611 9.75 14.0167 10.55C13.6833 11.3389 13.2167 12.0333 12.6167 12.6333C12.0278 13.2222 11.3389 13.6889 10.55 14.0333C9.76111 14.3667 8.91111 14.5333 8 14.5333ZM8 13.15C9.43333 13.15 10.65 12.65 11.65 11.65C12.65 10.65 13.15 9.43333 13.15 8C13.15 6.56667 12.65 5.35 11.65 4.35C10.65 3.35 9.43333 2.85 8 2.85C6.56667 2.85 5.35 3.35 4.35 4.35C3.35 5.35 2.85 6.56667 2.85 8C2.85 9.43333 3.35 10.65 4.35 11.65C5.35 12.65 6.56667 13.15 8 13.15Z"
+                                    fill="#28C07A"></path>
+                            </g>
+                        </svg></span></button>
+            </div>
+            <div id="heading-container">
+                <div id="logo-container">
+                    <span id="heading-logo"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                            viewBox="0 0 20 20" fill="none">
+                            <path
+                                d="M7.98439 15.6591V11.9822C6.71565 12.0008 5.32921 11.8996 3.88899 11.6058L3.8822 11.5992V13.7902C3.8822 14.2279 3.92935 14.5815 4.02366 14.8509C4.11796 15.1203 4.25156 15.3307 4.42445 15.4823C4.61305 15.6338 4.84095 15.7348 5.10814 15.7853C5.39105 15.8527 5.71325 15.8864 6.07475 15.8864C6.43625 15.8864 6.79774 15.8611 7.15924 15.8106C7.53645 15.7601 7.8115 15.7096 7.98439 15.6591Z"
+                                fill="url(#paint0_linear_2826_2722)"></path>
+                            <path
+                                d="M7.98439 10.81H8.15909C9.77207 10.7775 11.5313 10.5378 13.0307 9.85185L13.0296 9.85029C13.7212 9.4462 14.3184 8.87374 14.8214 8.13291C15.3243 7.39208 15.5758 6.49972 15.5758 5.45582C15.5758 3.78896 15.0257 2.46725 13.9255 1.4907C12.8253 0.514153 11.1907 0.0258789 9.02172 0.0258789C8.22015 0.0258789 7.46572 0.0763902 6.75845 0.177412C6.05117 0.261597 5.43035 0.404713 4.89596 0.606758C4.58162 0.724617 4.33014 0.884567 4.14154 1.08661C3.96865 1.27182 3.8822 1.54121 3.8822 1.89479V6.12974C4.60426 6.24028 7.34528 6.47711 7.96081 6.45089V3.66268C8.1337 3.629 8.29087 3.60375 8.43233 3.58691C8.57378 3.57008 8.76239 3.56166 8.99815 3.56166C9.83116 3.56166 10.4363 3.73003 10.8135 4.06677C11.2064 4.38667 11.4029 4.86653 11.4029 5.50633C11.4029 6.14614 11.23 6.63442 10.8842 6.97116C10.5384 7.29106 10.0669 7.45101 9.46966 7.45101H7.96081V7.43758C7.95673 7.44399 7.95296 7.45048 7.94952 7.45705C5.66229 7.347 4.27345 7.24991 3.8813 7.19488L3.88127 7.19426L2.79467 7.08629C2.69546 7.07644 2.62295 6.98802 2.63269 6.88881L2.69152 6.29001C2.70853 6.11695 2.49506 6.02204 2.37823 6.15072L0.11053 8.64856C0.0484818 8.71691 0.0480731 8.82113 0.109583 8.89009L1.93123 10.9325C2.03594 11.0499 2.2301 10.9867 2.24547 10.8302L2.28772 10.4002C2.29797 10.2959 2.39452 10.2223 2.49778 10.2401L3.8822 10.4785V10.4869L3.88899 10.4801C4.73603 10.6229 6.26777 10.8318 7.98439 10.8127V10.81Z"
+                                fill="url(#paint1_linear_2826_2722)"></path>
+                            <path
+                                d="M11.2143 14.2195L9.8481 11.8674C11.6229 11.6743 13.0258 11.2785 13.8091 10.9619C14.1095 11.3805 14.4076 11.7844 14.7035 12.1738C15.2536 12.8978 15.6858 13.5544 16.0002 14.1437C15.843 14.733 15.5522 15.1876 15.1279 15.5075C14.7192 15.8106 14.2556 15.9621 13.7369 15.9621C13.3911 15.9621 13.0925 15.92 12.841 15.8359C12.5895 15.7517 12.3695 15.6338 12.1809 15.4823C11.9923 15.3307 11.8194 15.1455 11.6622 14.9267C11.505 14.7078 11.3557 14.4721 11.2143 14.2195Z"
+                                fill="url(#paint2_linear_2826_2722)"></path>
+                            <path
+                                d="M0.0637207 8.77344C0.0645556 8.81521 0.0798203 8.85677 0.109546 8.8901L1.93119 10.9325C2.03591 11.0499 2.23006 10.9867 2.24543 10.8302L2.28769 10.4002C2.29793 10.2959 2.39449 10.2223 2.49774 10.2401L3.88216 10.4785V10.4869L3.88896 10.4801C4.73599 10.6229 6.26774 10.8318 7.98435 10.8127V10.81H8.01892V9.21903L0.0637207 8.77344Z"
+                                fill="url(#paint3_linear_2826_2722)"></path>
+                            <path
+                                d="M8.01896 9.21922L0.0637569 8.77363C0.0628642 8.72897 0.0784679 8.68408 0.11053 8.64876L2.37823 6.15092C2.49506 6.02224 2.70853 6.11715 2.69152 6.29021L2.63269 6.88901C2.62295 6.98822 2.69546 7.07664 2.79467 7.08649L3.88127 7.19446L3.8813 7.19508C4.27345 7.2501 5.66229 7.3472 7.94952 7.45725C7.95296 7.45068 7.95673 7.44419 7.96081 7.43778V7.45121H8.01896V9.21922Z"
+                                fill="url(#paint4_linear_2826_2722)"></path>
+                            <defs>
+                                <linearGradient id="paint0_linear_2826_2722" x1="3.76992" y1="-1.50587" x2="13.212"
+                                    y2="19.2702" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#1EA0FF"></stop>
+                                    <stop offset="1" stop-color="#004EEB"></stop>
+                                </linearGradient>
+                                <linearGradient id="paint1_linear_2826_2722" x1="3.76992" y1="-1.50587" x2="13.212"
+                                    y2="19.2702" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#1EA0FF"></stop>
+                                    <stop offset="1" stop-color="#004EEB"></stop>
+                                </linearGradient>
+                                <linearGradient id="paint2_linear_2826_2722" x1="3.76992" y1="-1.50587" x2="13.212"
+                                    y2="19.2702" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#1EA0FF"></stop>
+                                    <stop offset="1" stop-color="#004EEB"></stop>
+                                </linearGradient>
+                                <linearGradient id="paint3_linear_2826_2722" x1="11.8972" y1="9.83355" x2="5.27078"
+                                    y2="8.10349" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#1EA0FF"></stop>
+                                    <stop offset="1" stop-color="#004EEB"></stop>
+                                </linearGradient>
+                                <linearGradient id="paint4_linear_2826_2722" x1="2.63345" y1="4.98671" x2="14.7158"
+                                    y2="6.53243" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#1EA0FF"></stop>
+                                    <stop offset="1" stop-color="#004EEB"></stop>
+                                </linearGradient>
+                            </defs>
+                        </svg></span>
+                    <span id="logo-text">requestly</span>
+                </div>
+                <div id="actions-container">
+                    <button id="settings-button" class="" data-tooltip="Hide widget in app settings"><svg width="16"
+                            height="13" viewBox="0 0 16 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M10.6167 6.91667L9.58333 5.88333C9.62778 5.46111 9.5 5.1 9.2 4.8C8.9 4.48889 8.53889 4.35556 8.11667 4.4L7.08333 3.36667C7.22778 3.31111 7.37778 3.27222 7.53333 3.25C7.68889 3.21667 7.84444 3.2 8 3.2C8.77778 3.2 9.43889 3.47222 9.98333 4.01667C10.5278 4.56111 10.8 5.22222 10.8 6C10.8 6.15556 10.7833 6.31111 10.75 6.46667C10.7278 6.62222 10.6833 6.77222 10.6167 6.91667ZM12.8333 9.13333L11.9667 8.26667C12.3667 7.95556 12.7278 7.61667 13.05 7.25C13.3833 6.87222 13.6611 6.45556 13.8833 6C13.3389 4.87778 12.5333 4 11.4667 3.36667C10.4111 2.72222 9.25556 2.4 8 2.4C7.71111 2.4 7.42778 2.41667 7.15 2.45C6.87222 2.48333 6.6 2.53889 6.33333 2.61667L5.36667 1.65C5.78889 1.48333 6.21667 1.36667 6.65 1.3C7.09444 1.23333 7.54444 1.2 8 1.2C9.58889 1.2 11.0389 1.63333 12.35 2.5C13.6722 3.35556 14.6222 4.52222 15.2 6C14.9556 6.63333 14.6278 7.21111 14.2167 7.73333C13.8167 8.24444 13.3556 8.71111 12.8333 9.13333ZM12.8 12.5L10.6333 10.3333C10.2111 10.4889 9.77778 10.6056 9.33333 10.6833C8.9 10.7611 8.45556 10.8 8 10.8C6.41111 10.8 4.95556 10.3722 3.63333 9.51667C2.32222 8.65 1.37778 7.47778 0.800001 6C1.04444 5.36667 1.36667 4.78889 1.76667 4.26667C2.16667 3.74444 2.63333 3.27222 3.16667 2.85L1.5 1.18333L2.35 0.333334L13.65 11.65L12.8 12.5ZM4.01667 3.71667C3.62778 4.02778 3.26667 4.37222 2.93333 4.75C2.6 5.11667 2.32778 5.53333 2.11667 6C2.66111 7.12222 3.46111 8.00556 4.51667 8.65C5.58333 9.28333 6.74444 9.6 8 9.6C8.28889 9.6 8.57222 9.58333 8.85 9.55C9.12778 9.50556 9.40556 9.45 9.68333 9.38333L8.93333 8.63333C8.77778 8.68889 8.62222 8.73333 8.46667 8.76667C8.31111 8.78889 8.15556 8.8 8 8.8C7.22222 8.8 6.56111 8.52778 6.01667 7.98333C5.47222 7.43889 5.2 6.77778 5.2 6C5.2 5.84444 5.21667 5.68889 5.25 5.53333C5.29445 5.37778 5.33333 5.22222 5.36667 5.06667L4.01667 3.71667Z"
+                                fill="white"></path>
+                        </svg></button>
+                    <button id="minimize-button" class="hidden"><svg width="16" height="16" viewBox="0 0 16 16"
+                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <mask id="mask0_2826_2732" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0"
+                                width="16" height="16">
+                                <rect width="16" height="16" fill="#D9D9D9"></rect>
+                            </mask>
+                            <g mask="url(#mask0_2826_2732)">
+                                <path
+                                    d="M6.27083 4.75L8.5 6.95833V5.27083H10V9.5H5.75V8H7.4375L5.22917 5.79167L6.27083 4.75ZM13.75 14C13.125 14 12.5903 13.7847 12.1458 13.3542C11.7153 12.9097 11.5 12.375 11.5 11.75C11.5 11.125 11.7153 10.5972 12.1458 10.1667C12.5903 9.72222 13.125 9.5 13.75 9.5C14.375 9.5 14.9028 9.72222 15.3333 10.1667C15.7778 10.5972 16 11.125 16 11.75C16 12.375 15.7778 12.9097 15.3333 13.3542C14.9028 13.7847 14.375 14 13.75 14ZM1.5 14C1.08333 14 0.729167 13.8542 0.4375 13.5625C0.145833 13.2708 1.78814e-07 12.9167 1.78814e-07 12.5V3.5C1.78814e-07 3.08333 0.145833 2.72917 0.4375 2.4375C0.729167 2.14583 1.08333 2 1.5 2H14.5C14.9167 2 15.2708 2.14583 15.5625 2.4375C15.8542 2.72917 16 3.08333 16 3.5V8H14.5V3.5H1.5V12.5H10V14H1.5Z"
+                                    fill="white"></path>
+                            </g>
+                        </svg>
+                    </button><button id="close-button" class=""><svg width="8" height="8" viewBox="0 0 8 8" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M0.167368 0.167368C0.390524 -0.0557892 0.752333 -0.0557892 0.97549 0.167368L4 3.19188L7.02451 0.167368C7.24767 -0.0557892 7.60948 -0.0557892 7.83263 0.167368C8.05579 0.390524 8.05579 0.752333 7.83263 0.97549L4.80812 4L7.83263 7.02451C8.05579 7.24767 8.05579 7.60948 7.83263 7.83263C7.60948 8.05579 7.24767 8.05579 7.02451 7.83263L4 4.80812L0.97549 7.83263C0.752333 8.05579 0.390524 8.05579 0.167368 7.83263C-0.0557892 7.60948 -0.0557892 7.24767 0.167368 7.02451L3.19188 4L0.167368 0.97549C-0.0557892 0.752333 -0.0557892 0.390524 0.167368 0.167368Z"
+                                fill="#E3E3E3"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="test-rule-container">
+                <div id="implicit-widget-container">
+                    <div id="applied-rules-list-header">Rules applied on this page</div>
+                    <div id="applied-rules-list"></div>
+                    <div class="test-rule-widget-progress-bar">
+                    </div>
+                </div>
+            </div>
+            <div id="info-container" class="hidden">
+                <div id="info-icon"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                        fill="none">
+                        <path
+                            d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM11 7H13V9H11V7ZM11 11H13V17H11V11Z"
+                            fill="currentColor"></path>
+                    </svg></div>
+                <div id="info-text"></div>
+            </div>
+        </div>
+    </template></rq-implicit-test-rule-widget>
+
+</html>

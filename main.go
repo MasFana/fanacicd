@@ -461,7 +461,13 @@ func (s *ProjectState) cloneRepo() error {
 
 func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for changes
 	s.mu.Lock()
+	originalStatus := s.Status // Capture original status
 	s.Status = "Pulling"
+	s.mu.Unlock()
+	log.Printf("Project %s: pullRepo() started. Original status: %s, New status: Pulling", s.ID, originalStatus)
+	// Store original status to revert to if applicable
+	s.mu.Lock()
+	s.Project.Status = "Pulling" // Update the Project struct's status
 	s.mu.Unlock()
 
 	projectDir := filepath.Join("projects", s.ID)
@@ -479,27 +485,46 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
 
-	s.addBuildLog("Pulling latest changes...")
-	s.addBuildLog(outputStr)
-	log.Printf("Project %s: Git pull output: %s", s.ID, outputStr)
-
-	s.mu.Lock()
-	s.LastPull = time.Now() // Set LastPull as time.Time
-	if err != nil {
-		s.Status = "Error"
-		s.mu.Unlock()
-		s.addBuildLog(fmt.Sprintf("Pull error: %v", err))
-		return false, fmt.Errorf("pull failed: %v", err)
-	}
-
 	// Check if there were actual changes
 	// A project is "up to date" if git pull output contains "Already up to date." or "up to date" (case-insensitive)
 	// or if it's a fast-forward merge (which implies changes were applied).
 	// We want hasChanges to be true if there were actual new commits pulled.
 	hasChanges := !strings.Contains(strings.ToLower(outputStr), "already up to date.")
-	log.Printf("Project %s: hasChanges calculated as: %t (output: %s)", s.ID, hasChanges, outputStr)
 
-	s.Status = "Pulled" // Always set to Pulled after a pull attempt, regardless of changes
+	// Only add logs if there are actual changes or an error
+	if hasChanges || err != nil {
+		s.addBuildLog("Pulling latest changes...")
+		s.addBuildLog(outputStr)
+	} else {
+	}
+
+	s.mu.Lock()
+	if err != nil {
+		s.Status = "Error"
+		s.mu.Unlock()
+		s.addBuildLog(fmt.Sprintf("Pull error: %v", err))
+		log.Printf("Project %s: Pull failed. Status: Error", s.ID)
+		return false, fmt.Errorf("pull failed: %v", err)
+	}
+
+	// If no changes, revert to original status and don't update LastPull
+	if !hasChanges {
+		s.Status = originalStatus // Revert to status before pull
+		s.mu.Unlock()
+		log.Printf("Project %s: Pull completed, no new changes. Reverting status to: %s", s.ID, originalStatus)
+		saveDB() // Save to persist any other changes, but status is reverted
+		return false, nil
+	}
+
+	// If there are changes, update LastPull and set status to Pulled, then check for running state
+	s.LastPull = time.Now() // Set LastPull as time.Time
+	if originalStatus == "Running" && s.PID > 0 {
+		s.Status = "Running"
+		log.Printf("Project %s: Pull completed with new changes. Restoring status to Running.", s.ID)
+	} else {
+		s.Status = "Pulled" // Default to Pulled if not running or original status was not Running
+		log.Printf("Project %s: Pull completed with new changes. Status: Pulled", s.ID)
+	}
 	s.mu.Unlock()
 	saveDB()
 	return hasChanges, nil
@@ -510,8 +535,14 @@ func (s *ProjectState) build() {
 	defer s.cmdMu.Unlock()
 
 	s.mu.Lock()
+	originalStatus := s.Status // Capture original status
 	s.Status = "Building"
 	s.LastBuild = time.Now().Format("2006-01-02 15:04:05")
+	s.mu.Unlock()
+	log.Printf("Project %s: build() started. Original status: %s, New status: Building", s.ID, originalStatus)
+	// Store original status to revert to if applicable
+	s.mu.Lock()
+	s.Project.Status = "Building" // Update the Project struct's status
 	s.mu.Unlock()
 
 	projectDir := filepath.Join("projects", s.ID)
@@ -545,13 +576,21 @@ func (s *ProjectState) build() {
 			s.Status = "Build Failed"
 			s.mu.Unlock()
 			s.addBuildLog(fmt.Sprintf("Build error: %v", err))
+			log.Printf("Project %s: Build failed. Status: Build Failed", s.ID)
 			saveDB()
 			return
 		}
 	}
 
 	s.mu.Lock()
-	s.Status = "Built"
+	// After successful build, check if it was running before and restore status
+	if originalStatus == "Running" && s.PID > 0 {
+		s.Status = "Running"
+		log.Printf("Project %s: Build completed. Restoring status to Running.", s.ID)
+	} else {
+		s.Status = "Built" // Default to Built if not running or original status was not Running
+		log.Printf("Project %s: Build completed. Status: Built", s.ID)
+	}
 	s.mu.Unlock()
 	saveDB()
 }
@@ -1055,15 +1094,23 @@ func startAutoPullScheduler() {
 			requiredInterval := time.Duration(interval) * time.Minute
 
 			if timeSinceLastPull > requiredInterval {
+				log.Printf("Project %s: Auto-pull triggered. Time since last pull: %v, Required interval: %v", project.ID, timeSinceLastPull, requiredInterval)
 				go func(p *ProjectState) {
+					// Capture current status before pull
+					p.mu.RLock()
+					statusBeforeAutoPull := p.Status
+					p.mu.RUnlock()
+
 					hasChanges, err := p.pullRepo()
 					if err != nil {
 						p.addBuildLog(fmt.Sprintf("Auto-pull failed: %v", err))
+						log.Printf("Project %s: Auto-pull failed: %v", p.ID, err)
 						return
 					}
 
 					if hasChanges {
 						p.addBuildLog("Auto-pull completed with new changes. Triggering build/run.")
+						log.Printf("Project %s: Auto-pull completed with new changes. Status before auto-pull: %s. Triggering build/run.", p.ID, statusBeforeAutoPull)
 						// Stop existing process if running
 						p.stop()
 						// Trigger build
@@ -1072,6 +1119,7 @@ func startAutoPullScheduler() {
 						p.run()
 					} else {
 						p.addBuildLog("Auto-pull completed, no new changes. Skipping build/run.")
+						log.Printf("Project %s: Auto-pull completed, no new changes. Status before auto-pull: %s. Skipping build/run.", p.ID, statusBeforeAutoPull)
 					}
 				}(project)
 			}
