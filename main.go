@@ -25,6 +25,9 @@ import (
 //go:embed dashboard.html
 var dashboardHTML string
 
+//go:embed login.html
+var loginHTML string
+
 type Project struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
@@ -756,23 +759,13 @@ func serveDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveLoginPage(w http.ResponseWriter, r *http.Request) {
-	html := `<!DOCTYPE html>
-<html><head><title>CI/CD Dashboard - Login</title>
-<style>body{font-family:Arial, sans-serif;max-width:400px;margin:100px auto;padding:20px}</style>
-</head><body>
-<h2>CI/CD Dashboard Login</h2>
-<form id="loginForm"><label>Password:</label><input id="password" type="password" required><button type="submit">Login</button></form>
-<div id="error" style="color:red"></div>
-<script>
-document.getElementById('loginForm').addEventListener('submit',async e=>{
- e.preventDefault();
- const resp=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('password').value})});
- if(resp.ok) location.href='/'; else {const d=await resp.json();document.getElementById('error').textContent=d.error||'Login failed';}
-});
-</script>
-</body></html>`
+	tmpl, err := template.New("login").Parse(loginHTML)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html")
-	_, _ = w.Write([]byte(html))
+	_ = tmpl.Execute(w, nil)
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>CI/CD Dashboard - Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px
+        }
+    </style>
+</head>
+
+<body>
+    <h2>CI/CD Dashboard Login</h2>
+    <form id="loginForm"><label>Password:</label><input id="password" type="password" required><button
+            type="submit">Login</button></form>
+    <div id="error" style="color:red"></div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            const resp = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: document.getElementById('password').value }) });
+            if (resp.ok) location.href = '/'; else { const d = await resp.json(); document.getElementById('error').textContent = d.error || 'Login failed'; }
+        });
+    </script>
+</body>
+
+</html>
