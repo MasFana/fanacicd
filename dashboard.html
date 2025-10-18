@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en" x-data="dashboardApp()" x-init="init()">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CI/CD Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js CDN -->
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <style>
+        body {
+            background-color: #f9fafb;
+        }
+
+        .dark body {
+            background-color: #111827;
+            color: white;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <header class="bg-gray-800 text-white p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold">🚀 CI/CD Dashboard</h1>
+        <div class="flex items-center gap-3">
+            <button @click="addProjectModal=true" class="bg-green-600 px-3 py-1 rounded hover:bg-green-700">+ Add
+                Project</button>
+            <button @click="logout" class="bg-red-600 px-3 py-1 rounded hover:bg-red-700">Logout</button>
+        </div>
+    </header>
+
+    <!-- Projects Table -->
+    <main class="flex-grow container mx-auto p-4 overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-gray-100 text-gray-700">
+                <tr>
+                    <th class="p-2">Name</th>
+                    <th class="p-2">Repo</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2">Last Pull</th> <!-- Added Last Pull column -->
+                    <th class="p-2">Last Build</th>
+                    <th class="p-2">Last Run</th>
+                    <th class="p-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="proj in projects" :key="proj.id">
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2 font-semibold" x-text="proj.name"></td>
+                        <td class="p-2 truncate max-w-xs" x-text="proj.repo_url"></td>
+                        <td class="p-2">
+                            <span class="px-2 py-1 rounded text-white text-sm" :class="{
+                  'bg-green-600': proj.status==='Running' || proj.status==='Built' || proj.status==='Up to date',
+                  'bg-yellow-500': proj.status==='Building' || proj.status==='Pulling' || proj.status==='Cloning',
+                  'bg-red-600': proj.status==='Error' || proj.status==='Build Failed',
+                  'bg-gray-600': proj.status==='Stopped' || proj.status==='Cloned' || proj.status==='Pulled'
+                }" x-text="proj.status"></span>
+                        </td>
+                        <td class="p-2" x-text="proj.last_pull ? new Date(proj.last_pull).toLocaleString() : '-'"></td> <!-- Display Last Pull -->
+                        <td class="p-2" x-text="proj.last_build || '-'"></td>
+                        <td class="p-2" x-text="proj.last_run || '-'"></td>
+                        <td class="p-2 flex gap-1">
+                            <button @click="run(proj.id)"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm">Run</button>
+                            <button @click="stop(proj.id)"
+                                class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-sm">Stop</button>
+                            <button @click="build(proj.id)"
+                                class="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-sm">Build</button>
+                            <button @click="pull(proj.id)"
+                                class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-sm">Pull</button>
+                            <button @click="viewLogs(proj.id)"
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-sm">Logs</button>
+                            <button @click="editProject(proj)"
+                                class="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-sm">Edit</button>
+                            <button @click="deleteProject(proj.id)"
+                                class="bg-black hover:bg-gray-800 text-white px-2 py-1 rounded text-sm">Del</button>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </main>
+
+    <!-- Add/Edit Modal -->
+    <div x-show="addProjectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        x-transition>
+        <div class="bg-white rounded-xl w-96 p-6">
+            <h2 class="text-xl font-bold mb-3" x-text="editMode ? 'Edit Project' : 'Add New Project'"></h2>
+            <form @submit.prevent="saveProject">
+                <input type="hidden" x-model="projectForm.id">
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Name</label>
+                    <input x-model="projectForm.name" class="w-full border rounded p-1" required>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Repo URL</label>
+                    <input x-model="projectForm.repo_url" class="w-full border rounded p-1" required>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Branch</label>
+                    <input x-model="projectForm.branch" class="w-full border rounded p-1" placeholder="main">
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Build Command</label>
+                    <input x-model="projectForm.build_cmd" class="w-full border rounded p-1"
+                        placeholder="go build ./...">
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Run Command</label>
+                    <input x-model="projectForm.run_cmd" class="w-full border rounded p-1" placeholder="./app">
+                </div>
+                <div class="mb-2 flex gap-2 items-center">
+                    <input type="checkbox" x-model="projectForm.auto_pull">
+                    <label>Auto Pull</label>
+                </div>
+                <div class="mb-2 flex gap-2 items-center">
+                    <input type="checkbox" x-model="projectForm.auto_restart">
+                    <label>Auto Restart</label>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Pull Interval (min)</label>
+                    <input x-model.number="projectForm.pull_interval" type="number" min="1"
+                        class="w-full border rounded p-1">
+                </div>
+                <div class="flex justify-end mt-3 gap-2">
+                    <button type="button" @click="addProjectModal=false"
+                        class="px-3 py-1 bg-gray-400 rounded hover:bg-gray-500">Cancel</button>
+                    <button type="submit"
+                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div x-show="logModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        x-transition>
+        <div class="bg-white rounded-xl w-3/4 h-3/4 p-4 flex flex-col">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xl font-bold">Logs: <span x-text="currentLogProject"></span></h2>
+                <button @click="logModal=false" class="text-gray-600 hover:text-black">✕</button>
+            </div>
+            <div class="flex gap-2 mb-2">
+                <button @click="logType='build';fetchLogs()"
+                    :class="logType==='build'?'bg-blue-600 text-white':'bg-gray-300'"
+                    class="px-2 py-1 rounded">Build</button>
+                <button @click="logType='run';fetchLogs()"
+                    :class="logType==='run'?'bg-blue-600 text-white':'bg-gray-300'"
+                    class="px-2 py-1 rounded">Run</button>
+            </div>
+            <pre class="flex-grow bg-gray-100 rounded p-2 overflow-y-auto text-sm" x-text="logs.join('\n')"></pre>
+        </div>
+    </div>
+
+    <script>
+        function dashboardApp() {
+            return {
+                projects: [],
+                addProjectModal: false,
+                logModal: false,
+                logs: [],
+                logType: 'build',
+                currentLogProject: '',
+                editMode: false,
+                projectForm: {
+                    id: '',
+                    name: '',
+                    repo_url: '',
+                    build_cmd: '',
+                    run_cmd: '',
+                    auto_pull: false,
+                    pull_interval: 30,
+                    auto_restart: false, // Default to false
+                    branch: 'main' // Default branch
+                },
+
+                async init() {
+                    this.fetchProjects();
+                    this.connectEvents();
+                },
+
+                async fetchProjects() {
+                    const res = await fetch('/api/projects', { credentials: 'include' });
+                    if (res.ok) this.projects = await res.json();
+                },
+
+                connectEvents() {
+                    const es = new EventSource('/api/events', { withCredentials: true });
+                    es.onmessage = e => {
+                        console.log('EventSource message received:', e.data);
+                        this.projects = JSON.parse(e.data);
+                        console.log('Projects updated:', this.projects);
+                    };
+                    es.onerror = err => {
+                        console.error('EventSource failed:', err);
+                    };
+                },
+
+                addProject() {
+                    this.editMode = false;
+                    this.projectForm = { id: '', name: '', repo_url: '', build_cmd: '', run_cmd: '', auto_pull: false, pull_interval: 30, auto_restart: false, branch: 'main' };
+                    this.addProjectModal = true;
+                },
+
+                editProject(proj) {
+                    this.editMode = true;
+                    this.projectForm = JSON.parse(JSON.stringify(proj));
+                    this.addProjectModal = true;
+                },
+
+                async saveProject() {
+                    const method = this.editMode ? 'PUT' : 'POST';
+                    const url = this.editMode ? `/api/projects/${this.projectForm.id}` : '/api/projects';
+                    const res = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(this.projectForm)
+                    });
+                    if (res.ok) {
+                        this.addProjectModal = false;
+                        this.fetchProjects();
+                    } else {
+                        alert('Save failed');
+                    }
+                },
+
+                async deleteProject(id) {
+                    if (!confirm('Delete this project?')) return;
+                    await fetch(`/api/projects/${id}`, { method: 'DELETE', credentials: 'include' });
+                    this.fetchProjects();
+                },
+
+                async run(id) { await fetch(`/api/run/${id}`, { method: 'POST', credentials: 'include' }); },
+                async stop(id) { await fetch(`/api/stop/${id}`, { method: 'POST', credentials: 'include' }); },
+                async build(id) { await fetch(`/api/build/${id}`, { method: 'POST', credentials: 'include' }); },
+                async pull(id) { await fetch(`/api/pull/${id}`, { method: 'POST', credentials: 'include' }); },
+
+                async viewLogs(id) {
+                    this.currentLogProject = id;
+                    this.logModal = true;
+                    this.fetchLogs();
+                },
+
+                async fetchLogs() {
+                    if (!this.currentLogProject) return;
+                    const res = await fetch(`/api/logs/${this.currentLogProject}?type=${this.logType}&lines=200`, { credentials: 'include' });
+                    this.logs = res.ok ? await res.json() : ['Error loading logs'];
+                },
+
+                async logout() {
+                    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+                    location.href = '/';
+                }
+            }
+        }
+    </script>
+
+</body>
+
+</html>
