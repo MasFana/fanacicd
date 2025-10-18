@@ -86,26 +86,46 @@ func (d *Dashboard) cleanupOrphanedProcesses() {
 	for id, state := range d.projects {
 		state.mu.Lock()
 		pid := state.PID
+		wasRunning := state.Status == "Running" // Check if it was running before cleanup
 		state.mu.Unlock()
 
 		if pid > 0 {
-			if proc, err := os.FindProcess(pid); err == nil {
+			proc, err := os.FindProcess(pid)
+			if err == nil && proc != nil {
+				// Attempt to kill the process
 				if err := proc.Kill(); err != nil {
 					log.Printf("Error killing potential orphaned process %d for project %s: %v. Assuming it was already dead or inaccessible.", pid, id, err)
+					// Even if killing fails, we must clear the PID and set status to Stopped
+					state.mu.Lock()
+					state.PID = 0
+					state.Status = "Stopped"
+					state.mu.Unlock()
 				} else {
 					log.Printf("Successfully killed orphaned process %d for project %s.", pid, id)
-					_, _ = proc.Wait()
+					_, _ = proc.Wait() // Wait for it to truly exit
 					state.mu.Lock()
 					state.PID = 0
 					state.Status = "Stopped"
 					state.mu.Unlock()
 				}
 			} else {
+				// os.FindProcess failed, or proc was nil. Assume it's not running.
+				log.Printf("Project %s: Process with PID %d not found or inaccessible. Clearing stale PID.", id, pid)
 				state.mu.Lock()
 				state.PID = 0
 				state.Status = "Stopped"
 				state.mu.Unlock()
 			}
+		}
+
+		// Auto-run if it was previously running or auto-restart is enabled
+		state.mu.RLock()
+		autoRestart := state.AutoRestart
+		state.mu.RUnlock()
+
+		if wasRunning || autoRestart {
+			log.Printf("Project %s was running or has auto-restart enabled. Attempting to restart.", id)
+			go state.run()
 		}
 	}
 	d.mu.Unlock() // Unlock before calling saveDB
@@ -285,15 +305,28 @@ func (d *Dashboard) addProject(project *Project) error {
 	if project.Branch == "" {
 		project.Branch = "main" // Default branch
 	}
-	project.AutoRestart = false // Default to false
+	// project.AutoRestart = false // Removed default to false, now uses value from form
 
 	d.projects[project.ID] = &ProjectState{
 		Project:  *project,
 		BuildLog: []string{},
 		RunLog:   []string{},
 	}
-	d.mu.Unlock() // Release lock before calling saveDB
+	state := d.projects[project.ID] // Get the newly created project state
+	d.mu.Unlock()                   // Release lock before calling saveDB
 	saveDB()
+
+	// Auto clone, build, and run for new projects
+	go func() {
+		log.Printf("New project %s added. Initiating auto clone, build, and run.", state.ID)
+		if err := state.cloneRepo(); err != nil {
+			state.addBuildLog(fmt.Sprintf("Auto-clone failed for new project: %v", err))
+			return
+		}
+		state.build()
+		state.run()
+	}()
+
 	return nil
 }
 
@@ -445,6 +478,7 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 
 	s.addBuildLog("Pulling latest changes...")
 	s.addBuildLog(outputStr)
+	log.Printf("Project %s: Git pull output: %s", s.ID, outputStr)
 
 	s.mu.Lock()
 	s.LastPull = time.Now() // Set LastPull as time.Time
@@ -456,15 +490,13 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 	}
 
 	// Check if there were actual changes
-	hasChanges := !strings.Contains(outputStr, "Already up to date.") &&
-		!strings.Contains(outputStr, "up to date") &&
-		!strings.Contains(outputStr, "Fast-forward") // Fast-forward implies changes
+	// A project is "up to date" if git pull output contains "Already up to date." or "up to date" (case-insensitive)
+	// or if it's a fast-forward merge (which implies changes were applied).
+	// We want hasChanges to be true if there were actual new commits pulled.
+	hasChanges := !strings.Contains(strings.ToLower(outputStr), "already up to date.")
+	log.Printf("Project %s: hasChanges calculated as: %t (output: %s)", s.ID, hasChanges, outputStr)
 
-	if hasChanges {
-		s.Status = "Pulled"
-	} else {
-		s.Status = "Up to date" // New status for no changes
-	}
+	s.Status = "Pulled" // Always set to Pulled after a pull attempt, regardless of changes
 	s.mu.Unlock()
 	saveDB()
 	return hasChanges, nil
@@ -527,6 +559,7 @@ func (s *ProjectState) run() {
 
 	s.mu.Lock()
 	if s.PID > 0 {
+		log.Printf("Project %s: run() called but PID (%d) is already active. Aborting run.", s.ID, s.PID)
 		s.mu.Unlock()
 		return
 	}
@@ -596,6 +629,16 @@ func (s *ProjectState) run() {
 			s.addRunLog("Process exited")
 		}
 		saveDB()
+
+		// Auto-restart logic
+		s.mu.RLock()
+		autoRestart := s.AutoRestart
+		s.mu.RUnlock()
+
+		if autoRestart {
+			log.Printf("Project %s: Auto-restart enabled. Restarting...", s.ID)
+			go s.run()
+		}
 	}()
 }
 
@@ -619,7 +662,8 @@ func (s *ProjectState) stop() {
 	s.PID = 0
 	s.Status = "Stopped"
 	s.mu.Unlock()
-	// saveDB() is removed from here to prevent deadlock when called from deleteProject
+	log.Printf("Project %s: Status set to Stopped, PID reset. Calling saveDB().", s.ID)
+	saveDB() // Persist the stopped status
 }
 
 type logWriter struct {
@@ -1025,8 +1069,8 @@ func startAutoPullScheduler() {
 						return
 					}
 
-					// Only build if there are new changes or if auto-restart is enabled
-					if hasChanges || p.AutoRestart {
+					if hasChanges {
+						p.addBuildLog("Auto-pull completed with new changes. Triggering build/run.")
 						// Stop existing process if running
 						p.stop()
 						// Trigger build
@@ -1034,7 +1078,7 @@ func startAutoPullScheduler() {
 						// Trigger run
 						p.run()
 					} else {
-						p.addBuildLog("Auto-pull completed, no new changes and auto-restart is off. Skipping build/run.")
+						p.addBuildLog("Auto-pull completed, no new changes. Skipping build/run.")
 					}
 				}(project)
 			}

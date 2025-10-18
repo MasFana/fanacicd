@@ -1,4 +1,21 @@
 {
   "password": "admin12345",
-  "projects": {}
+  "projects": {
+    "project-1760815219687029100": {
+      "id": "project-1760815219687029100",
+      "name": "Jawir babi",
+      "repo_url": "https://github.com/MasFana/TodoPR",
+      "build_cmd": "npm i",
+      "run_cmd": "node index.js",
+      "status": "Running",
+      "pid": 112252,
+      "last_build": "2025-10-19 02:25:54",
+      "last_run": "2025-10-19 02:36:17",
+      "last_pull": "1970-01-01T07:00:00+07:00",
+      "auto_pull": true,
+      "pull_interval": 1,
+      "auto_restart": true,
+      "branch": "master"
+    }
+  }
 }
