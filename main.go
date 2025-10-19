@@ -36,8 +36,8 @@ type Project struct {
 	RunCmd       string    `json:"run_cmd"`
 	Status       string    `json:"status"`
 	PID          int       `json:"pid"`
-	LastBuild    string    `json:"last_build"`
-	LastRun      string    `json:"last_run"`
+	LastBuild    time.Time `json:"last_build"`
+	LastRun      time.Time `json:"last_run"`
 	LastPull     time.Time `json:"last_pull"` // Changed to time.Time
 	AutoPull     bool      `json:"auto_pull"`
 	PullInterval int       `json:"pull_interval"`
@@ -237,12 +237,12 @@ func loadDB() {
 			parsedTime, err := time.Parse("2006-01-02 15:04:05", tempProj.LastPull)
 			if err != nil {
 				log.Printf("loadDB: Error parsing LastPull for project %s: %v. Setting to Unix epoch.", id, err)
-				proj.LastPull = time.Unix(0, 0)
+				proj.LastPull = time.Now()
 			} else {
 				proj.LastPull = parsedTime
 			}
 		} else {
-			proj.LastPull = time.Unix(0, 0)
+			proj.LastPull = time.Now()
 		}
 
 		dashboard.projects[id] = &ProjectState{
@@ -303,7 +303,7 @@ func (d *Dashboard) addProject(project *Project) error {
 
 	project.Status = "Stopped"
 	if project.LastPull.IsZero() { // Check if LastPull is zero value
-		project.LastPull = time.Unix(0, 0) // Set to Unix epoch start
+		project.LastPull = time.Now()
 	}
 	if project.Branch == "" {
 		project.Branch = "main" // Default branch
@@ -360,56 +360,56 @@ func (d *Dashboard) updateProject(project *Project) error {
 }
 
 func (d *Dashboard) deleteProject(id string) error {
-    if !isValidProjectID(id) {
-        return fmt.Errorf("invalid project ID format")
-    }
+	if !isValidProjectID(id) {
+		return fmt.Errorf("invalid project ID format")
+	}
 
-    d.mu.Lock()
-    state, exists := d.projects[id]
-    if !exists {
-        d.mu.Unlock()
-        return fmt.Errorf("project not found")
-    }
+	d.mu.Lock()
+	state, exists := d.projects[id]
+	if !exists {
+		d.mu.Unlock()
+		return fmt.Errorf("project not found")
+	}
 
-    // Disable auto-restart FIRST to prevent race conditions
-    state.mu.Lock()
-    state.AutoRestart = false
-    state.Status = "Deleting"
-    state.mu.Unlock()
-    
-    d.mu.Unlock() // Release dashboard lock early
+	// Disable auto-restart FIRST to prevent race conditions
+	state.mu.Lock()
+	state.AutoRestart = false
+	state.Status = "Deleting"
+	state.mu.Unlock()
 
-    // Stop the project (non-blocking but with auto-restart disabled)
-    state.stop()
+	d.mu.Unlock() // Release dashboard lock early
 
-    // Remove from projects map
-    d.mu.Lock()
-    delete(d.projects, id)
-    d.mu.Unlock()
+	// Stop the project (non-blocking but with auto-restart disabled)
+	state.stop()
 
-    // Clean up project directory in background with retry logic
-    go func(projectID string) {
-        projectDir := filepath.Join("projects", projectID)
-        
-        // Retry logic for directory removal
-        maxRetries := 3
-        for i := 0; i < maxRetries; i++ {
-            if err := os.RemoveAll(projectDir); err != nil {
-                if i == maxRetries-1 {
-                    log.Printf("deleteProject: Error removing project directory %s after %d attempts: %v", projectDir, maxRetries, err)
-                } else {
-                    time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
-                    continue
-                }
-            } else {
-                log.Printf("deleteProject: Project directory %s removed successfully.", projectDir)
-                break
-            }
-        }
-    }(id)
+	// Remove from projects map
+	d.mu.Lock()
+	delete(d.projects, id)
+	d.mu.Unlock()
 
-    saveDB()
-    return nil
+	// Clean up project directory in background with retry logic
+	go func(projectID string) {
+		projectDir := filepath.Join("projects", projectID)
+
+		// Retry logic for directory removal
+		maxRetries := 3
+		for i := 0; i < maxRetries; i++ {
+			if err := os.RemoveAll(projectDir); err != nil {
+				if i == maxRetries-1 {
+					log.Printf("deleteProject: Error removing project directory %s after %d attempts: %v", projectDir, maxRetries, err)
+				} else {
+					time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+					continue
+				}
+			} else {
+				log.Printf("deleteProject: Project directory %s removed successfully.", projectDir)
+				break
+			}
+		}
+	}(id)
+
+	saveDB()
+	return nil
 }
 
 func (d *Dashboard) getProject(id string) *ProjectState {
@@ -422,20 +422,20 @@ func (d *Dashboard) getProject(id string) *ProjectState {
 }
 
 func (d *Dashboard) getAllProjects() []*ProjectState {
-    d.mu.RLock()
-    projectIDs := make([]string, 0, len(d.projects))
-    for id := range d.projects {
-        projectIDs = append(projectIDs, id)
-    }
-    d.mu.RUnlock()
+	d.mu.RLock()
+	projectIDs := make([]string, 0, len(d.projects))
+	for id := range d.projects {
+		projectIDs = append(projectIDs, id)
+	}
+	d.mu.RUnlock()
 
-    projects := make([]*ProjectState, 0, len(projectIDs))
-    for _, id := range projectIDs {
-        if project := d.getProject(id); project != nil {
-            projects = append(projects, project)
-        }
-    }
-    return projects
+	projects := make([]*ProjectState, 0, len(projectIDs))
+	for _, id := range projectIDs {
+		if project := d.getProject(id); project != nil {
+			projects = append(projects, project)
+		}
+	}
+	return projects
 }
 
 func (s *ProjectState) addBuildLog(line string) {
@@ -563,7 +563,7 @@ func (s *ProjectState) build() {
 	s.mu.Lock()
 	originalStatus := s.Status // Capture original status
 	s.Status = "Building"
-	s.LastBuild = time.Now().Format("2006-01-02 15:04:05")
+	s.LastBuild = time.Now()
 	s.mu.Unlock()
 	log.Printf("Project %s: build() started. Original status: %s, New status: Building", s.ID, originalStatus)
 	// Store original status to revert to if applicable
@@ -632,7 +632,7 @@ func (s *ProjectState) run() {
 		return
 	}
 	s.Status = "Running"
-	s.LastRun = time.Now().Format("2006-01-02 15:04:05")
+	s.LastRun = time.Now()
 	s.mu.Unlock()
 
 	projectDir := filepath.Join("projects", s.ID)
@@ -711,41 +711,41 @@ func (s *ProjectState) run() {
 }
 
 func (s *ProjectState) stop() {
-    s.mu.Lock()
-    // Disable auto-restart temporarily during stop
-    wasAutoRestart := s.AutoRestart
-    s.AutoRestart = false
-    pid := s.PID
-    s.mu.Unlock()
+	s.mu.Lock()
+	// Disable auto-restart temporarily during stop
+	wasAutoRestart := s.AutoRestart
+	s.AutoRestart = false
+	pid := s.PID
+	s.mu.Unlock()
 
-    if pid > 0 {
-        // Use a more robust process termination approach
-        if proc, err := os.FindProcess(pid); err == nil && proc != nil {
-            // Try graceful termination first
-            _ = proc.Signal(os.Interrupt)
-            
-            // Wait a bit for graceful shutdown
-            time.Sleep(500 * time.Millisecond)
-            
-            // Force kill if still running
-            _ = proc.Kill()
-            
-            // Wait in goroutine to avoid blocking
-            go func() {
-                _, _ = proc.Wait()
-            }()
-        }
-    }
+	if pid > 0 {
+		// Use a more robust process termination approach
+		if proc, err := os.FindProcess(pid); err == nil && proc != nil {
+			// Try graceful termination first
+			_ = proc.Signal(os.Interrupt)
 
-    s.mu.Lock()
-    s.PID = 0
-    s.Status = "Stopped"
-    // Restore auto-restart setting only if it was enabled
-    s.AutoRestart = wasAutoRestart
-    s.mu.Unlock()
-    
-    log.Printf("Project %s: Stopped successfully. AutoRestart: %v", s.ID, wasAutoRestart)
-    saveDB()
+			// Wait a bit for graceful shutdown
+			time.Sleep(500 * time.Millisecond)
+
+			// Force kill if still running
+			_ = proc.Kill()
+
+			// Wait in goroutine to avoid blocking
+			go func() {
+				_, _ = proc.Wait()
+			}()
+		}
+	}
+
+	s.mu.Lock()
+	s.PID = 0
+	s.Status = "Stopped"
+	// Restore auto-restart setting only if it was enabled
+	s.AutoRestart = wasAutoRestart
+	s.mu.Unlock()
+
+	log.Printf("Project %s: Stopped successfully. AutoRestart: %v", s.ID, wasAutoRestart)
+	saveDB()
 }
 
 type logWriter struct {
