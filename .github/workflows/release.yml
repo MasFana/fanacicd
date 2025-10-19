@@ -1,0 +1,101 @@
+name: Build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            ext: ""
+          - os: linux
+            arch: 386
+            ext: ""
+          - os: linux
+            arch: arm64
+            ext: ""
+          - os: linux
+            arch: arm
+            ext: ""
+          - os: windows
+            arch: amd64
+            ext: ".exe"
+          - os: windows
+            arch: 386
+            ext: ".exe"
+          - os: darwin
+            arch: amd64
+            ext: ""
+          - os: darwin
+            arch: arm64
+            ext: ""
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Build
+      run: |
+        GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o fanacicd-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} main.go
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: fanacicd-${{ matrix.os }}-${{ matrix.arch }}
+        path: fanacicd-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Display structure of downloaded files
+      run: ls -R
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./artifacts/**/fanacicd-*
+        body: |
+          Multi-architecture builds of Fana CI/CD Dashboard
+          
+          ## Downloads
+          
+          | Platform | Architecture | File |
+          |----------|--------------|------|
+          | Linux | 64-bit | `fanacicd-linux-amd64` |
+          | Linux | 32-bit | `fanacicd-linux-386` |
+          | Linux | ARM64 | `fanacicd-linux-arm64` |
+          | Linux | ARM | `fanacicd-linux-arm` |
+          | Windows | 64-bit | `fanacicd-windows-amd64.exe` |
+          | Windows | 32-bit | `fanacicd-windows-386.exe` |
+          | macOS | 64-bit | `fanacicd-darwin-amd64` |
+          | macOS | ARM64 | `fanacicd-darwin-arm64` |
+          
+          ## Usage
+          
+          ```bash
+          # Make executable (Linux/macOS)
+          chmod +x fanacicd-*
+          
+          # Run
+          ./fanacicd-linux-amd64
+          ```
