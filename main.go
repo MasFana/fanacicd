@@ -497,14 +497,12 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 	// or if it's a fast-forward merge (which implies changes were applied).
 	// We want hasChanges to be true if there were actual new commits pulled.
 	hasChanges := !strings.Contains(strings.ToLower(outputStr), "already up to date.")
-	log.Printf("Project %s: hasChanges calculated as: %t (output: %s)", s.ID, hasChanges, outputStr)
 
 	// Only add logs if there are actual changes or an error
 	if hasChanges || err != nil {
 		s.addBuildLog("Pulling latest changes...")
 		s.addBuildLog(outputStr)
 	} else {
-		log.Printf("Project %s: Git pull output (no changes): %s", s.ID, outputStr)
 	}
 
 	s.mu.Lock()
@@ -1142,7 +1140,6 @@ func startAutoPullScheduler() {
 						p.run()
 					} else {
 						p.addBuildLog("Auto-pull completed, no new changes. Skipping build/run.")
-						log.Printf("Project %s: Auto-pull completed, no new changes. Status before auto-pull: %s. Skipping build/run.", p.ID, statusBeforeAutoPull)
 					}
 				}(project)
 			}
