@@ -506,6 +506,7 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 		return true, nil // Cloned, so considered new changes
 	}
 
+	s.mu.Lock()
 	cmd := exec.Command("git", "pull", "origin", s.Branch) // Pull specific branch
 	cmd.Dir = projectDir
 	output, err := cmd.CombinedOutput()
@@ -524,7 +525,6 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 	} else {
 	}
 
-	s.mu.Lock()
 	if err != nil {
 		s.Status = "Error"
 		s.mu.Unlock()
