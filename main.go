@@ -360,34 +360,44 @@ func (d *Dashboard) updateProject(project *Project) error {
 }
 
 func (d *Dashboard) deleteProject(id string) error {
-	if !isValidProjectID(id) {
-		return fmt.Errorf("invalid project ID format")
-	}
+    if !isValidProjectID(id) {
+        return fmt.Errorf("invalid project ID format")
+    }
 
-	d.mu.Lock()
-	state, exists := d.projects[id]
-	if !exists {
-		d.mu.Unlock()
-		return fmt.Errorf("project not found")
-	}
+    d.mu.Lock()
+    state, exists := d.projects[id]
+    if !exists {
+        d.mu.Unlock()
+        return fmt.Errorf("project not found")
+    }
 
-	// Ensure the project process is stopped before deleting
-	state.stop() // Call the stop method to gracefully terminate the process
+    // Mark as deleting to prevent new operations
+    state.mu.Lock()
+    state.Status = "Deleting"
+    state.mu.Unlock()
+    
+    d.mu.Unlock() // Release dashboard lock early
 
-	delete(d.projects, id)
-	d.mu.Unlock()
+    // Stop the project (non-blocking)
+    state.stop()
 
-	// Attempt to remove the project directory
-	projectDir := filepath.Join("projects", id)
-	if err := os.RemoveAll(projectDir); err != nil {
-		log.Printf("deleteProject: Error removing project directory %s: %v", projectDir, err)
-		// Do not return error here, as the project is already removed from dashboard.projects
-	} else {
-		log.Printf("deleteProject: Project directory %s removed successfully.", projectDir)
-	}
+    // Remove from projects map
+    d.mu.Lock()
+    delete(d.projects, id)
+    d.mu.Unlock()
 
-	saveDB()
-	return nil
+    // Clean up project directory in background
+    go func(projectID string) {
+        projectDir := filepath.Join("projects", projectID)
+        if err := os.RemoveAll(projectDir); err != nil {
+            log.Printf("deleteProject: Error removing project directory %s: %v", projectDir, err)
+        } else {
+            log.Printf("deleteProject: Project directory %s removed successfully.", projectDir)
+        }
+    }(id)
+
+    saveDB()
+    return nil
 }
 
 func (d *Dashboard) getProject(id string) *ProjectState {
@@ -463,12 +473,9 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 	s.mu.Lock()
 	originalStatus := s.Status // Capture original status
 	s.Status = "Pulling"
-	s.mu.Unlock()
-	log.Printf("Project %s: pullRepo() started. Original status: %s, New status: Pulling", s.ID, originalStatus)
-	// Store original status to revert to if applicable
-	s.mu.Lock()
 	s.Project.Status = "Pulling" // Update the Project struct's status
 	s.mu.Unlock()
+	log.Printf("Project %s: pullRepo() started. Original status: %s, New status: Pulling", s.ID, originalStatus)
 
 	projectDir := filepath.Join("projects", s.ID)
 	// if not cloned yet, clone instead
@@ -490,12 +497,14 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 	// or if it's a fast-forward merge (which implies changes were applied).
 	// We want hasChanges to be true if there were actual new commits pulled.
 	hasChanges := !strings.Contains(strings.ToLower(outputStr), "already up to date.")
+	log.Printf("Project %s: hasChanges calculated as: %t (output: %s)", s.ID, hasChanges, outputStr)
 
 	// Only add logs if there are actual changes or an error
 	if hasChanges || err != nil {
 		s.addBuildLog("Pulling latest changes...")
 		s.addBuildLog(outputStr)
 	} else {
+		log.Printf("Project %s: Git pull output (no changes): %s", s.ID, outputStr)
 	}
 
 	s.mu.Lock()
@@ -685,27 +694,41 @@ func (s *ProjectState) run() {
 }
 
 func (s *ProjectState) stop() {
-	s.mu.Lock()
-	pid := s.PID
-	s.mu.Unlock()
+    s.mu.Lock()
+    pid := s.PID
+    s.mu.Unlock()
 
-	if pid > 0 {
-		if proc, err := os.FindProcess(pid); err == nil && proc != nil {
-			_ = proc.Signal(os.Interrupt)
-			// give a moment to exit gracefully
-			time.Sleep(250 * time.Millisecond)
-			_ = proc.Kill()
-			// best-effort wait
-			proc.Wait()
-		}
-	}
+    if pid > 0 {
+        go func(pid int) {
+            if proc, err := os.FindProcess(pid); err == nil && proc != nil {
+                _ = proc.Signal(os.Interrupt)
+                
+                // Simple channel for timeout instead of select with single case
+                timeout := time.After(250 * time.Millisecond)
+                <-timeout // Wait for timeout
+                
+                _ = proc.Kill()
+                
+                // Non-blocking wait with proper channel usage
+                waitDone := make(chan error, 1)
+                go func() {
+                    _, err := proc.Wait()
+                    waitDone <- err
+                }()
+                
+                // Use select only when we have multiple cases
+                <-time.After(2 * time.Second)
+                // After 2 seconds, we give up (the wait is already in a goroutine)
+            }
+        }(pid)
+    }
 
-	s.mu.Lock()
-	s.PID = 0
-	s.Status = "Stopped"
-	s.mu.Unlock()
-	log.Printf("Project %s: Status set to Stopped, PID reset. Calling saveDB().", s.ID)
-	saveDB() // Persist the stopped status
+    s.mu.Lock()
+    s.PID = 0
+    s.Status = "Stopped"
+    s.mu.Unlock()
+    log.Printf("Project %s: Status set to Stopped, PID reset. Calling saveDB().", s.ID)
+    saveDB()
 }
 
 type logWriter struct {

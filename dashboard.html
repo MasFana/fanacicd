@@ -173,6 +173,90 @@
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
         }
+
+        /* Square project cards */
+        .project-card {
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+
+        /* Improved visual hierarchy */
+        .card-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .card-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .project-info {
+            margin-bottom: 1.5rem;
+        }
+
+        .project-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            transition: all 0.2s ease;
+        }
+
+
+        .project-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Responsive grid for projects */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .projects-grid {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .projects-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+
+            .project-card {
+                aspect-ratio: auto;
+                min-height: 280px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -183,7 +267,7 @@
             <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
                 <div class="flex items-center space-x-3">
                     <div>
-                        <h1 class="text-2xl font-bold">CI/CD Dashboard</h1>
+                        <h1 class="text-2xl font-bold">Fana CI/CD Dashboard</h1>
                         <p class="text-gray-400 text-sm">Manage your deployment pipeline</p>
                     </div>
                 </div>
@@ -211,7 +295,8 @@
                         <p class="text-gray-400 text-sm">Total Projects</p>
                         <h3 id="totalProjects" class="text-3xl font-bold">0</h3>
                     </div>
-                    <div class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
+                    <div
+                        class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -226,7 +311,8 @@
                         <p class="text-gray-400 text-sm">Running</p>
                         <h3 id="runningProjects" class="text-3xl font-bold text-green-400">0</h3>
                     </div>
-                    <div class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
+                    <div
+                        class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -243,7 +329,8 @@
                         <p class="text-gray-400 text-sm">Stopped</p>
                         <h3 id="stoppedProjects" class="text-3xl font-bold text-red-400">0</h3>
                     </div>
-                    <div class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
+                    <div
+                        class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -260,7 +347,8 @@
                         <p class="text-gray-400 text-sm">Building</p>
                         <h3 id="buildingProjects" class="text-3xl font-bold text-orange-400">0</h3>
                     </div>
-                    <div class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
+                    <div
+                        class="w-12 h-12 shadow-inner shadow-black bg-neutral-800 rounded-lg flex items-center justify-center">
                         <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -354,9 +442,9 @@
                         </div>
                     </div>
 
-                    <div id="projectsContainer" class="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                    <div id="projectsContainer" class="projects-grid">
                         <!-- Projects will be dynamically inserted here -->
-                        <div class="text-center py-8 text-gray-400">
+                        <div class="text-center py-8 text-gray-400 col-span-full">
                             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto mb-2">
                             </div>
                             Loading projects...
@@ -369,7 +457,7 @@
         <!-- Logs Modal -->
         <div id="logsModal"
             class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden modal-overlay">
-            <div class="glass-modal rounded-xl w-full max-w-6xl max-h-[90vh] flex flex-col modal-content">
+            <div class="glass-modal rounded-xl w-full max-w-6xl h-full max-h-[90vh] flex flex-col modal-content">
                 <div class="flex justify-between items-center p-6 border-b border-gray-800">
                     <h3 class="text-lg font-semibold text-white" id="logsModalTitle">Project Logs</h3>
                     <button id="closeLogsModal" class="text-gray-400 hover:text-white">
@@ -534,7 +622,7 @@
                 updateProjectsDisplay(projects);
                 updateStats(projects);
             }).fail(function () {
-                $('#projectsContainer').html('<div class="text-center py-8 text-red-400">Failed to load projects</div>');
+                $('#projectsContainer').html('<div class="text-center py-8 text-red-400 col-span-full">Failed to load projects</div>');
             });
         }
 
@@ -554,7 +642,7 @@
         function updateProjectsDisplay(projects) {
             if (projects.length === 0) {
                 $('#projectsContainer').html(`
-                    <div class="text-center py-8 text-gray-400">
+                    <div class="text-center py-8 text-gray-400 col-span-full">
                         <svg class="w-12 h-12 shadow-inner shadow-black mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
                         </svg>
@@ -565,87 +653,97 @@
             }
 
             const projectsHtml = projects.map(project => `
-                <div class="glass-card rounded-xl p-6" data-project-id="${project.id}">
-                    <div class="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
-                        <div class="flex-1">
-                            <div class="flex items-center space-x-3 mb-2">
-                                <h3 class="text-lg font-semibold text-white">${escapeHtml(project.name)}</h3>
-                                <span class="status-badge px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusClass(project.status)}">
-                                    ${project.status}
-                                </span>
-                                ${project.pid ? `<span class="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">PID: ${project.pid}</span>` : ''}
-                            </div>
-                            <div class="text-sm text-gray-400 space-y-1">
-                                <div class="flex items-center space-x-2">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                                    </svg>
-                                    <span class="truncate">${escapeHtml(project.repo_url)}</span>
-                                </div>
-                                <div class="flex items-center space-x-2">
+                <div class="glass-card project-card shadow-inner shadow-black rounded-xl p-6" data-project-id="${project.id}">
+                    <div class="card-header">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-lg font-semibold text-white truncate">${escapeHtml(project.name)}</h3>
+                            <span class="status-badge px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusClass(project.status)}">
+                                ${project.status}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-400 truncate">
+                            ${escapeHtml(project.repo_url)}
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="project-info">
+                            <div class="grid grid-cols-2 gap-2 text-sm text-gray-400 mb-3">
+                                <div class="flex items-center space-x-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
                                     </svg>
-                                    <span>Branch: ${escapeHtml(project.branch || 'main')}</span>
+                                    <span>${escapeHtml(project.branch || 'main')}</span>
                                 </div>
+                                ${project.pid ? `<div class="flex ml-auto items-center space-x-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                    <span>PID: ${project.pid}</span>
+                                </div>` : ''}
+                            </div>
+                            
+                            <div class="space-y-1 text-xs text-gray-500">
                                 ${project.last_build ? `<div>Last build: ${project.last_build}</div>` : ''}
                                 ${project.last_run ? `<div>Last run: ${project.last_run}</div>` : ''}
                             </div>
                         </div>
                         
-                        <div class="flex flex-wrap gap-2">
-                            <button onclick="showLogs('${project.id}')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                        <div class="project-actions">
+                            <button onclick="showLogs('${project.id}')" class="action-btn btn-secondary">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                 </svg>
-                                <span>Logs</span>
+                                Logs
                             </button>
-                            <button onclick="editProject('${project.id}')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                            <button onclick="editProject('${project.id}')" class="action-btn btn-secondary">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                 </svg>
-                                <span>Edit</span>
+                                Edit
                             </button>
-                            <button onclick="runAction('${project.id}', 'build')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                            <button onclick="runAction('${project.id}', 'build')" class="action-btn btn-secondary">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                                 </svg>
-                                <span>Build</span>
+                                Build
                             </button>
                             ${project.status === 'Running' ?
-                    `<button onclick="runAction('${project.id}', 'stop')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                    `<button onclick="runAction('${project.id}', 'stop')" class="action-btn btn-secondary">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
                                     </svg>
-                                    <span>Stop</span>
+                                    Stop
                                 </button>` :
-                    `<button onclick="runAction('${project.id}', 'run')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    `<button onclick="runAction('${project.id}', 'run')" class="action-btn btn-secondary">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
                                     </svg>
-                                    <span>Run</span>
+                                    Run
                                 </button>`
                 }
-                            <button onclick="runAction('${project.id}', 'pull')" class="btn-secondary px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1">
+                        </div>
+                        
+                        <div class="project-meta">
+                            <div class="flex items-center space-x-2">
+                                ${project.auto_pull ?
+                    `<span class="flex items-center space-x-1 text-xs text-green-400">
+                                        <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                                        <span>Auto Pull</span>
+                                    </span>` : ''}
+                                ${project.auto_restart ?
+                    `<span class="flex items-center space-x-1 text-xs text-blue-400">
+                                        <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                        <span>Auto Restart</span>
+                                    </span>` : ''}
+                            </div>
+                            <button onclick="deleteProject('${project.id}')" class="text-red-400 hover:text-red-300 transition-colors duration-200">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                 </svg>
-                                <span>Pull</span>
                             </button>
                         </div>
-                    </div>
-                    
-                    <div class="mt-4 pt-4 border-t border-gray-800 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-400">
-                        <div class="flex items-center space-x-4">
-                            ${project.auto_pull ? `<span class="flex items-center space-x-1"><div class="w-2 h-2 bg-green-400 rounded-full"></div><span>Auto Pull</span></span>` : ''}
-                            ${project.auto_restart ? `<span class="flex items-center space-x-1"><div class="w-2 h-2 bg-blue-400 rounded-full"></div><span>Auto Restart</span></span>` : ''}
-                        </div>
-                        <button onclick="deleteProject('${project.id}')" class="text-red-400 hover:text-red-300 transition-colors duration-200">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                        </button>
                     </div>
                 </div>
             `).join('');
@@ -743,7 +841,13 @@
         function loadLogs(projectId, type) {
             $.get(`/api/logs/${projectId}?type=${type}&lines=100`, function (logs) {
                 const contentElement = $(`#${type}LogsContent`);
-                contentElement.text(logs.join('\n'));
+                
+                try{
+
+                    contentElement.text(logs.join('\n'));
+                }catch{
+contentElement.text("No logs yet XP.")
+                }
 
                 // Scroll to bottom
                 const container = contentElement.parent();
