@@ -2,6 +2,8 @@
 
 A lightweight, self-hosted CI/CD dashboard written in Go for managing deployment pipelines with a beautiful dark-themed interface.
 
+![image](./image.png)
+
 ## Features
 
 - 🚀 **Simple Setup** - Easy to deploy and configure
@@ -27,6 +29,7 @@ A lightweight, self-hosted CI/CD dashboard written in Go for managing deployment
 ### Installation
 
 1. **Download the latest release:**
+
    ```bash
    # For Linux 64-bit
    wget https://github.com/MasFana/fanacicd/releases/latest/download/fanacicd-linux-amd64
@@ -35,6 +38,7 @@ A lightweight, self-hosted CI/CD dashboard written in Go for managing deployment
    ```
 
 2. **Or build from source:**
+
    ```bash
    git clone https://github.com/MasFana/fanacicd.git
    cd fanacicd
@@ -58,16 +62,16 @@ A lightweight, self-hosted CI/CD dashboard written in Go for managing deployment
 
 Visit the [Releases Page](https://github.com/MasFana/fanacicd/releases) to download pre-built binaries for your platform:
 
-| Platform | Architecture | File |
-|----------|--------------|------|
-| Linux | 64-bit | `fanacicd-linux-amd64` |
-| Linux | 32-bit | `fanacicd-linux-386` |
-| Linux | ARM64 | `fanacicd-linux-arm64` |
-| Linux | ARM | `fanacicd-linux-arm` |
-| Windows | 64-bit | `fanacicd-windows-amd64.exe` |
-| Windows | 32-bit | `fanacicd-windows-386.exe` |
-| macOS | 64-bit | `fanacicd-darwin-amd64` |
-| macOS | ARM64 | `fanacicd-darwin-arm64` |
+| Platform | Architecture | File                         |
+| -------- | ------------ | ---------------------------- |
+| Linux    | 64-bit       | `fanacicd-linux-amd64`       |
+| Linux    | 32-bit       | `fanacicd-linux-386`         |
+| Linux    | ARM64        | `fanacicd-linux-arm64`       |
+| Linux    | ARM          | `fanacicd-linux-arm`         |
+| Windows  | 64-bit       | `fanacicd-windows-amd64.exe` |
+| Windows  | 32-bit       | `fanacicd-windows-386.exe`   |
+| macOS    | 64-bit       | `fanacicd-darwin-amd64`      |
+| macOS    | ARM64        | `fanacicd-darwin-arm64`      |
 
 ### Verification
 
@@ -113,7 +117,7 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -138,21 +142,21 @@ jobs:
             arch: amd64
           - os: darwin
             arch: arm64
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
-          
+          go-version: "1.21"
+
       - name: Build
         run: |
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o fanacicd-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} main.go
         env:
           EXT: ${{ matrix.os == 'windows' && '.exe' || '' }}
-          
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -190,19 +194,19 @@ projects/
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Dashboard UI |
-| `/api/login` | POST | User authentication |
-| `/api/logout` | POST | User logout |
-| `/api/projects` | GET/POST | List/Create projects |
+| Endpoint             | Method         | Description               |
+| -------------------- | -------------- | ------------------------- |
+| `/`                  | GET            | Dashboard UI              |
+| `/api/login`         | POST           | User authentication       |
+| `/api/logout`        | POST           | User logout               |
+| `/api/projects`      | GET/POST       | List/Create projects      |
 | `/api/projects/{id}` | GET/PUT/DELETE | Get/Update/Delete project |
-| `/api/build/{id}` | POST | Trigger build |
-| `/api/run/{id}` | POST | Start application |
-| `/api/stop/{id}` | POST | Stop application |
-| `/api/pull/{id}` | POST | Pull repository updates |
-| `/api/logs/{id}` | GET | Get project logs |
-| `/api/events` | GET | SSE for real-time updates |
+| `/api/build/{id}`    | POST           | Trigger build             |
+| `/api/run/{id}`      | POST           | Start application         |
+| `/api/stop/{id}`     | POST           | Stop application          |
+| `/api/pull/{id}`     | POST           | Pull repository updates   |
+| `/api/logs/{id}`     | GET            | Get project logs          |
+| `/api/events`        | GET            | SSE for real-time updates |
 
 ## Security
 
@@ -245,13 +249,16 @@ fanacicd/
 ### Common Issues
 
 1. **Port already in use**
+
    - Change the `PORT` environment variable
 
 2. **Permission denied**
+
    - Ensure write permissions in the current directory
    - The application needs to create `db.json` and `projects/` directory
 
 3. **Git clone failures**
+
    - Verify repository URLs are accessible
    - Check network connectivity
    - Ensure Git is installed on the system
