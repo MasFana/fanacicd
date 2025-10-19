@@ -371,14 +371,15 @@ func (d *Dashboard) deleteProject(id string) error {
         return fmt.Errorf("project not found")
     }
 
-    // Mark as deleting to prevent new operations
+    // Disable auto-restart FIRST to prevent race conditions
     state.mu.Lock()
+    state.AutoRestart = false
     state.Status = "Deleting"
     state.mu.Unlock()
     
     d.mu.Unlock() // Release dashboard lock early
 
-    // Stop the project (non-blocking)
+    // Stop the project (non-blocking but with auto-restart disabled)
     state.stop()
 
     // Remove from projects map
@@ -386,13 +387,24 @@ func (d *Dashboard) deleteProject(id string) error {
     delete(d.projects, id)
     d.mu.Unlock()
 
-    // Clean up project directory in background
+    // Clean up project directory in background with retry logic
     go func(projectID string) {
         projectDir := filepath.Join("projects", projectID)
-        if err := os.RemoveAll(projectDir); err != nil {
-            log.Printf("deleteProject: Error removing project directory %s: %v", projectDir, err)
-        } else {
-            log.Printf("deleteProject: Project directory %s removed successfully.", projectDir)
+        
+        // Retry logic for directory removal
+        maxRetries := 3
+        for i := 0; i < maxRetries; i++ {
+            if err := os.RemoveAll(projectDir); err != nil {
+                if i == maxRetries-1 {
+                    log.Printf("deleteProject: Error removing project directory %s after %d attempts: %v", projectDir, maxRetries, err)
+                } else {
+                    time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+                    continue
+                }
+            } else {
+                log.Printf("deleteProject: Project directory %s removed successfully.", projectDir)
+                break
+            }
         }
     }(id)
 
@@ -410,13 +422,20 @@ func (d *Dashboard) getProject(id string) *ProjectState {
 }
 
 func (d *Dashboard) getAllProjects() []*ProjectState {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	projects := make([]*ProjectState, 0, len(d.projects))
-	for _, p := range d.projects {
-		projects = append(projects, p)
-	}
-	return projects
+    d.mu.RLock()
+    projectIDs := make([]string, 0, len(d.projects))
+    for id := range d.projects {
+        projectIDs = append(projectIDs, id)
+    }
+    d.mu.RUnlock()
+
+    projects := make([]*ProjectState, 0, len(projectIDs))
+    for _, id := range projectIDs {
+        if project := d.getProject(id); project != nil {
+            projects = append(projects, project)
+        }
+    }
+    return projects
 }
 
 func (s *ProjectState) addBuildLog(line string) {
@@ -693,39 +712,39 @@ func (s *ProjectState) run() {
 
 func (s *ProjectState) stop() {
     s.mu.Lock()
+    // Disable auto-restart temporarily during stop
+    wasAutoRestart := s.AutoRestart
+    s.AutoRestart = false
     pid := s.PID
     s.mu.Unlock()
 
     if pid > 0 {
-        go func(pid int) {
-            if proc, err := os.FindProcess(pid); err == nil && proc != nil {
-                _ = proc.Signal(os.Interrupt)
-                
-                // Simple channel for timeout instead of select with single case
-                timeout := time.After(250 * time.Millisecond)
-                <-timeout // Wait for timeout
-                
-                _ = proc.Kill()
-                
-                // Non-blocking wait with proper channel usage
-                waitDone := make(chan error, 1)
-                go func() {
-                    _, err := proc.Wait()
-                    waitDone <- err
-                }()
-                
-                // Use select only when we have multiple cases
-                <-time.After(2 * time.Second)
-                // After 2 seconds, we give up (the wait is already in a goroutine)
-            }
-        }(pid)
+        // Use a more robust process termination approach
+        if proc, err := os.FindProcess(pid); err == nil && proc != nil {
+            // Try graceful termination first
+            _ = proc.Signal(os.Interrupt)
+            
+            // Wait a bit for graceful shutdown
+            time.Sleep(500 * time.Millisecond)
+            
+            // Force kill if still running
+            _ = proc.Kill()
+            
+            // Wait in goroutine to avoid blocking
+            go func() {
+                _, _ = proc.Wait()
+            }()
+        }
     }
 
     s.mu.Lock()
     s.PID = 0
     s.Status = "Stopped"
+    // Restore auto-restart setting only if it was enabled
+    s.AutoRestart = wasAutoRestart
     s.mu.Unlock()
-    log.Printf("Project %s: Status set to Stopped, PID reset. Calling saveDB().", s.ID)
+    
+    log.Printf("Project %s: Stopped successfully. AutoRestart: %v", s.ID, wasAutoRestart)
     saveDB()
 }
 
@@ -1171,7 +1190,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("CI/CD Dashboard starting on :%s", port)
+	log.Printf("CI/CD Dashboard starting on http://localhost:%s", port)
 	log.Printf("Default password: %s", dashboard.password)
 	log.Printf("Edit db.json to change password")
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
