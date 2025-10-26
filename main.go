@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	_ "embed"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -38,19 +39,82 @@ type Project struct {
 	PID          int       `json:"pid"`
 	LastBuild    time.Time `json:"last_build"`
 	LastRun      time.Time `json:"last_run"`
-	LastPull     time.Time `json:"last_pull"` // Changed to time.Time
+	LastPull     time.Time `json:"last_pull"`
 	AutoPull     bool      `json:"auto_pull"`
 	PullInterval int       `json:"pull_interval"`
-	AutoRestart  bool      `json:"auto_restart"` // Added AutoRestart field
-	Branch       string    `json:"branch"`       // Added Branch field
+	AutoRestart  bool      `json:"auto_restart"`
+	Branch       string    `json:"branch"`
+}
+
+// BoundedSlice implements a circular buffer for efficient log storage
+type BoundedSlice struct {
+	data  []string
+	start int
+	count int
+	mu    sync.RWMutex
+}
+
+func NewBoundedSlice(capacity int) *BoundedSlice {
+	return &BoundedSlice{
+		data: make([]string, capacity),
+	}
+}
+
+func (bs *BoundedSlice) Append(item string) {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+	
+	if bs.count < len(bs.data) {
+		bs.data[bs.count] = item
+		bs.count++
+	} else {
+		bs.data[bs.start] = item
+		bs.start = (bs.start + 1) % len(bs.data)
+	}
+}
+
+func (bs *BoundedSlice) GetSlice() []string {
+	bs.mu.RLock()
+	defer bs.mu.RUnlock()
+	
+	if bs.count == 0 {
+		return []string{}
+	}
+	
+	if bs.count < len(bs.data) {
+		result := make([]string, bs.count)
+		copy(result, bs.data[:bs.count])
+		return result
+	}
+	
+	result := make([]string, len(bs.data))
+	for i := 0; i < len(bs.data); i++ {
+		result[i] = bs.data[(bs.start+i)%len(bs.data)]
+	}
+	return result
+}
+
+func (bs *BoundedSlice) GetLastN(n int) []string {
+	slice := bs.GetSlice()
+	if n >= len(slice) {
+		return slice
+	}
+	return slice[len(slice)-n:]
+}
+
+func (bs *BoundedSlice) Len() int {
+	bs.mu.RLock()
+	defer bs.mu.RUnlock()
+	return bs.count
 }
 
 type ProjectState struct {
 	Project
-	BuildLog []string `json:"build_log"`
-	RunLog   []string `json:"run_log"`
+	BuildLog *BoundedSlice `json:"-"`
+	RunLog   *BoundedSlice `json:"-"`
 	mu       sync.RWMutex
-	cmdMu    sync.Mutex // protects exec.Cmd lifecycle if needed
+	cmdMu    sync.Mutex
+	cmd      *exec.Cmd     // Track the command for better process management
 }
 
 type Dashboard struct {
@@ -76,64 +140,87 @@ func init() {
 	}
 	loadDB()
 	go dashboard.cleanupExpiredSessions()
-	go dashboard.cleanupOrphanedProcesses() // Call cleanup on startup
+	go dashboard.cleanupOrphanedProcesses()
 }
 
-// cleanupOrphanedProcesses checks for and kills processes that were running
-// when the dashboard last shut down, but are no longer managed.
+// Improved orphaned process cleanup with better locking
 func (d *Dashboard) cleanupOrphanedProcesses() {
 	log.Println("Starting orphaned process cleanup...")
-	d.mu.Lock()
-	// No defer d.mu.Unlock() here, unlock explicitly before saveDB
-
-	for id, state := range d.projects {
+	
+	// Get all projects without holding the lock during process operations
+	d.mu.RLock()
+	projects := make([]*ProjectState, 0, len(d.projects))
+	for _, state := range d.projects {
+		projects = append(projects, state)
+	}
+	d.mu.RUnlock()
+	
+	cleanupOccurred := false
+	
+	for _, state := range projects {
 		state.mu.Lock()
 		pid := state.PID
-		wasRunning := state.Status == "Running" // Check if it was running before cleanup
+		wasRunning := state.Status == "Running"
+		autoRestart := state.AutoRestart
 		state.mu.Unlock()
-
+		
 		if pid > 0 {
-			proc, err := os.FindProcess(pid)
-			if err == nil && proc != nil {
-				// Attempt to kill the process
-				if err := proc.Kill(); err != nil {
-					log.Printf("Error killing potential orphaned process %d for project %s: %v. Assuming it was already dead or inaccessible.", pid, id, err)
-					// Even if killing fails, we must clear the PID and set status to Stopped
-					state.mu.Lock()
-					state.PID = 0
-					state.Status = "Stopped"
-					state.mu.Unlock()
-				} else {
-					log.Printf("Successfully killed orphaned process %d for project %s.", pid, id)
-					_, _ = proc.Wait() // Wait for it to truly exit
-					state.mu.Lock()
-					state.PID = 0
-					state.Status = "Stopped"
-					state.mu.Unlock()
-				}
+			if err := state.forceKillProcess(pid); err != nil {
+				log.Printf("Error killing orphaned process %d for project %s: %v", pid, state.ID, err)
 			} else {
-				// os.FindProcess failed, or proc was nil. Assume it's not running.
-				log.Printf("Project %s: Process with PID %d not found or inaccessible. Clearing stale PID.", id, pid)
-				state.mu.Lock()
-				state.PID = 0
-				state.Status = "Stopped"
-				state.mu.Unlock()
+				log.Printf("Successfully cleaned up orphaned process %d for project %s", pid, state.ID)
+				cleanupOccurred = true
 			}
 		}
-
+		
 		// Auto-run if it was previously running or auto-restart is enabled
-		state.mu.RLock()
-		autoRestart := state.AutoRestart
-		state.mu.RUnlock()
-
 		if wasRunning || autoRestart {
-			log.Printf("Project %s was running or has auto-restart enabled. Attempting to restart.", id)
+			log.Printf("Project %s was running or has auto-restart enabled. Attempting to restart.", state.ID)
 			go state.run()
 		}
 	}
-	d.mu.Unlock() // Unlock before calling saveDB
-	saveDB()      // Save DB after cleanup to persist status changes
+	
+	if cleanupOccurred {
+		saveDB()
+	}
 	log.Println("Orphaned process cleanup finished.")
+}
+
+// Helper method to force kill a process
+func (s *ProjectState) forceKillProcess(pid int) error {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		s.mu.Lock()
+		s.PID = 0
+		s.Status = "Stopped"
+		s.mu.Unlock()
+		return fmt.Errorf("process not found: %v", err)
+	}
+	
+	// Try graceful termination first
+	if err := proc.Signal(os.Interrupt); err != nil {
+		log.Printf("Failed to send interrupt to process %d: %v", pid, err)
+	}
+	
+	// Wait a bit for graceful shutdown
+	time.Sleep(1 * time.Second)
+	
+	// Force kill if still running
+	if err := proc.Kill(); err != nil {
+		log.Printf("Failed to kill process %d: %v", pid, err)
+	}
+	
+	// Wait for process to exit
+	go func() {
+		_, _ = proc.Wait()
+	}()
+	
+	s.mu.Lock()
+	s.PID = 0
+	s.Status = "Stopped"
+	s.mu.Unlock()
+	
+	return nil
 }
 
 func getDefaultPassword() string {
@@ -143,12 +230,18 @@ func getDefaultPassword() string {
 	return "admin12345"
 }
 
-// secure token generator
+// Improved secure token generator
 func (d *Dashboard) generateSessionToken() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// fallback to timestamp-hex if crypto fails (very unlikely)
-		return fmt.Sprintf("%x-%d", b, time.Now().UnixNano())
+		// Better fallback using time and random data
+		fallback := make([]byte, 16)
+		binary.LittleEndian.PutUint64(fallback, uint64(time.Now().UnixNano()))
+		if _, err := rand.Read(fallback[8:]); err != nil {
+			// Final fallback - very unlikely
+			return fmt.Sprintf("%x-%d", fallback, time.Now().UnixNano())
+		}
+		return hex.EncodeToString(fallback)
 	}
 	return hex.EncodeToString(b)
 }
@@ -195,12 +288,16 @@ func (d *Dashboard) cleanupExpiredSessions() {
 	}
 }
 
-// Load DB with safe locking and copying
+// Improved DB loading with better error handling
 func loadDB() {
 	data, err := os.ReadFile("db.json")
 	if err != nil {
-		log.Printf("No db.json found, creating default...")
-		saveDB()
+		if os.IsNotExist(err) {
+			log.Printf("No db.json found, creating default...")
+			saveDB()
+		} else {
+			log.Printf("Error reading db.json: %v", err)
+		}
 		return
 	}
 
@@ -216,7 +313,7 @@ func loadDB() {
 	}
 	var tempDb TempDB
 	if err := json.Unmarshal(data, &tempDb); err != nil {
-		log.Printf("Error loading db.json: %v", err)
+		log.Printf("Error unmarshaling db.json: %v", err)
 		return
 	}
 
@@ -236,19 +333,19 @@ func loadDB() {
 		if tempProj.LastPull != "" {
 			parsedTime, err := time.Parse("2006-01-02 15:04:05", tempProj.LastPull)
 			if err != nil {
-				log.Printf("loadDB: Error parsing LastPull for project %s: %v. Setting to Unix epoch.", id, err)
-				proj.LastPull = time.Now()
+				log.Printf("loadDB: Error parsing LastPull for project %s: %v. Setting to zero value.", id, err)
+				proj.LastPull = parsedTime // Zero value
 			} else {
-				proj.LastPull = parsedTime
+				proj.LastPull = time.Now()
 			}
 		} else {
-			proj.LastPull = time.Now()
+			proj.LastPull = time.Now() // Zero value
 		}
 
 		dashboard.projects[id] = &ProjectState{
 			Project:  proj,
-			BuildLog: []string{},
-			RunLog:   []string{},
+			BuildLog: NewBoundedSlice(200),
+			RunLog:   NewBoundedSlice(200),
 		}
 	}
 }
@@ -263,7 +360,7 @@ func saveDB() {
 	dashboard.mu.RLock()
 	for id, state := range dashboard.projects {
 		state.mu.RLock()
-		// copy project to avoid race and include latest fields
+		// Copy project to avoid race and include latest fields
 		cp := state.Project
 		db.Projects[id] = &cp
 		state.mu.RUnlock()
@@ -276,8 +373,19 @@ func saveDB() {
 		return
 	}
 
-	if err := os.WriteFile("db.json", data, 0644); err != nil {
-		log.Printf("Error saving db.json: %v", err)
+	// Write to temporary file first, then rename for atomic update
+	tempFile := "db.json.tmp"
+	if err := os.WriteFile(tempFile, data, 0644); err != nil {
+		log.Printf("Error saving db.json.tmp: %v", err)
+		return
+	}
+	
+	if err := os.Rename(tempFile, "db.json"); err != nil {
+		log.Printf("Error renaming db.json.tmp to db.json: %v", err)
+		// Try direct write as fallback
+		if err := os.WriteFile("db.json", data, 0644); err != nil {
+			log.Printf("Error saving db.json: %v", err)
+		}
 	}
 }
 
@@ -302,21 +410,20 @@ func (d *Dashboard) addProject(project *Project) error {
 	}
 
 	project.Status = "Stopped"
-	if project.LastPull.IsZero() { // Check if LastPull is zero value
+	if project.LastPull.IsZero() {
 		project.LastPull = time.Now()
 	}
 	if project.Branch == "" {
-		project.Branch = "main" // Default branch
+		project.Branch = "main"
 	}
-	// project.AutoRestart = false // Removed default to false, now uses value from form
 
 	d.projects[project.ID] = &ProjectState{
 		Project:  *project,
-		BuildLog: []string{},
-		RunLog:   []string{},
+		BuildLog: NewBoundedSlice(200),
+		RunLog:   NewBoundedSlice(200),
 	}
-	state := d.projects[project.ID] // Get the newly created project state
-	d.mu.Unlock()                   // Release lock before calling saveDB
+	state := d.projects[project.ID]
+	d.mu.Unlock()
 	saveDB()
 
 	// Auto clone, build, and run for new projects
@@ -352,8 +459,8 @@ func (d *Dashboard) updateProject(project *Project) error {
 	state.RunCmd = project.RunCmd
 	state.AutoPull = project.AutoPull
 	state.PullInterval = project.PullInterval
-	state.AutoRestart = project.AutoRestart // Update AutoRestart field
-	state.Branch = project.Branch           // Update Branch field
+	state.AutoRestart = project.AutoRestart
+	state.Branch = project.Branch
 	state.mu.Unlock()
 	saveDB()
 	return nil
@@ -377,7 +484,7 @@ func (d *Dashboard) deleteProject(id string) error {
 	state.Status = "Deleting"
 	state.mu.Unlock()
 
-	d.mu.Unlock() // Release dashboard lock early
+	d.mu.Unlock()
 
 	// Stop the project (non-blocking but with auto-restart disabled)
 	state.stop()
@@ -391,14 +498,13 @@ func (d *Dashboard) deleteProject(id string) error {
 	go func(projectID string) {
 		projectDir := filepath.Join("projects", projectID)
 
-		// Retry logic for directory removal
 		maxRetries := 3
 		for i := 0; i < maxRetries; i++ {
 			if err := os.RemoveAll(projectDir); err != nil {
 				if i == maxRetries-1 {
 					log.Printf("deleteProject: Error removing project directory %s after %d attempts: %v", projectDir, maxRetries, err)
 				} else {
-					time.Sleep(time.Duration(i+1) * time.Second) // Exponential backoff
+					time.Sleep(time.Duration(i+1) * time.Second)
 					continue
 				}
 			} else {
@@ -439,21 +545,15 @@ func (d *Dashboard) getAllProjects() []*ProjectState {
 }
 
 func (s *ProjectState) addBuildLog(line string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.BuildLog = append(s.BuildLog, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), line))
-	if len(s.BuildLog) > 200 {
-		s.BuildLog = s.BuildLog[len(s.BuildLog)-200:]
-	}
+	logEntry := fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), line)
+	s.BuildLog.Append(logEntry)
+	log.Printf("BUILD [%s]: %s", s.ID, line)
 }
 
 func (s *ProjectState) addRunLog(line string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.RunLog = append(s.RunLog, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), line))
-	if len(s.RunLog) > 200 {
-		s.RunLog = s.RunLog[len(s.RunLog)-200:]
-	}
+	logEntry := fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), line)
+	s.RunLog.Append(logEntry)
+	log.Printf("RUN [%s]: %s", s.ID, line)
 }
 
 func (s *ProjectState) cloneRepo() error {
@@ -481,20 +581,18 @@ func (s *ProjectState) cloneRepo() error {
 	}
 
 	s.mu.Lock()
-	s.LastPull = time.Now() // Set LastPull as time.Time
+	s.LastPull = time.Now()
 	s.Status = "Cloned"
 	s.mu.Unlock()
 	saveDB()
 	return nil
 }
 
-func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for changes
+func (s *ProjectState) pullRepo() (bool, error) {
 	s.mu.Lock()
-	originalStatus := s.Status // Capture original status
+	originalStatus := s.Status
 	s.Status = "Pulling"
-	s.Project.Status = "Pulling" // Update the Project struct's status
 	s.mu.Unlock()
-	log.Printf("Project %s: pullRepo() started. Original status: %s, New status: Pulling", s.ID, originalStatus)
 
 	projectDir := filepath.Join("projects", s.ID)
 	// if not cloned yet, clone instead
@@ -503,57 +601,49 @@ func (s *ProjectState) pullRepo() (bool, error) { // Modified to return bool for
 		if cloneErr != nil {
 			return false, cloneErr
 		}
-		return true, nil // Cloned, so considered new changes
+		return true, nil
 	}
 
-	s.mu.Lock()
-	cmd := exec.Command("git", "pull", "origin", s.Branch) // Pull specific branch
+	cmd := exec.Command("git", "pull", "origin", s.Branch)
 	cmd.Dir = projectDir
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
 
 	// Check if there were actual changes
-	// A project is "up to date" if git pull output contains "Already up to date." or "up to date" (case-insensitive)
-	// or if it's a fast-forward merge (which implies changes were applied).
-	// We want hasChanges to be true if there were actual new commits pulled.
 	hasChanges := !strings.Contains(strings.ToLower(outputStr), "already up to date.")
 
 	// Only add logs if there are actual changes or an error
 	if hasChanges || err != nil {
 		s.addBuildLog("Pulling latest changes...")
 		s.addBuildLog(outputStr)
-	} else {
 	}
 
 	if err != nil {
+		s.mu.Lock()
 		s.Status = "Error"
 		s.mu.Unlock()
 		s.addBuildLog(fmt.Sprintf("Pull error: %v", err))
-		log.Printf("Project %s: Pull failed. Status: Error", s.ID)
 		return false, fmt.Errorf("pull failed: %v", err)
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
 	// If no changes, revert to original status and don't update LastPull
 	if !hasChanges {
-		s.Status = originalStatus // Revert to status before pull
-		s.mu.Unlock()
-		log.Printf("Project %s: Pull completed, no new changes. Reverting status to: %s", s.ID, originalStatus)
-		saveDB() // Save to persist any other changes, but status is reverted
+		s.Status = originalStatus
 		return false, nil
 	}
 
-	// If there are changes, update LastPull and set status to Pulled, then check for running state
-	s.LastPull = time.Now() // Set LastPull as time.Time
+	// If there are changes, update LastPull and set appropriate status
+	s.LastPull = time.Now()
 	if originalStatus == "Running" && s.PID > 0 {
 		s.Status = "Running"
-		log.Printf("Project %s: Pull completed with new changes. Restoring status to Running.", s.ID)
 	} else {
-		s.Status = "Pulled" // Default to Pulled if not running or original status was not Running
-		log.Printf("Project %s: Pull completed with new changes. Status: Pulled", s.ID)
+		s.Status = "Pulled"
 	}
-	s.mu.Unlock()
-	saveDB()
-	return hasChanges, nil
+	
+	return true, nil
 }
 
 func (s *ProjectState) build() {
@@ -561,14 +651,9 @@ func (s *ProjectState) build() {
 	defer s.cmdMu.Unlock()
 
 	s.mu.Lock()
-	originalStatus := s.Status // Capture original status
+	originalStatus := s.Status
 	s.Status = "Building"
 	s.LastBuild = time.Now()
-	s.mu.Unlock()
-	log.Printf("Project %s: build() started. Original status: %s, New status: Building", s.ID, originalStatus)
-	// Store original status to revert to if applicable
-	s.mu.Lock()
-	s.Project.Status = "Building" // Update the Project struct's status
 	s.mu.Unlock()
 
 	projectDir := filepath.Join("projects", s.ID)
@@ -602,7 +687,6 @@ func (s *ProjectState) build() {
 			s.Status = "Build Failed"
 			s.mu.Unlock()
 			s.addBuildLog(fmt.Sprintf("Build error: %v", err))
-			log.Printf("Project %s: Build failed. Status: Build Failed", s.ID)
 			saveDB()
 			return
 		}
@@ -612,10 +696,8 @@ func (s *ProjectState) build() {
 	// After successful build, check if it was running before and restore status
 	if originalStatus == "Running" && s.PID > 0 {
 		s.Status = "Running"
-		log.Printf("Project %s: Build completed. Restoring status to Running.", s.ID)
 	} else {
-		s.Status = "Built" // Default to Built if not running or original status was not Running
-		log.Printf("Project %s: Build completed. Status: Built", s.ID)
+		s.Status = "Built"
 	}
 	s.mu.Unlock()
 	saveDB()
@@ -648,6 +730,11 @@ func (s *ProjectState) run() {
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = projectDir
 
+	// Store the command for better process management
+	s.mu.Lock()
+	s.cmd = cmd
+	s.mu.Unlock()
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		s.addRunLog(fmt.Sprintf("Error getting stdout pipe: %v", err))
@@ -661,6 +748,7 @@ func (s *ProjectState) run() {
 		s.addRunLog(fmt.Sprintf("Run start error: %v", err))
 		s.mu.Lock()
 		s.Status = "Error"
+		s.cmd = nil
 		s.mu.Unlock()
 		return
 	}
@@ -672,29 +760,40 @@ func (s *ProjectState) run() {
 	s.mu.Unlock()
 	saveDB()
 
-	// stream logs
+	// Stream logs with proper pipe closing
 	go func() {
+		defer func() {
+			if stdout != nil {
+				stdout.Close()
+			}
+		}()
 		if stdout != nil {
 			io.Copy(&logWriter{s, "run"}, stdout)
 		}
 	}()
 	go func() {
+		defer func() {
+			if stderr != nil {
+				stderr.Close()
+			}
+		}()
 		if stderr != nil {
 			io.Copy(&logWriter{s, "run"}, stderr)
 		}
 	}()
 
-	// wait and cleanup
+	// Wait and cleanup
 	go func() {
 		err := cmd.Wait()
 		s.mu.Lock()
 		s.Status = "Stopped"
 		s.PID = 0
+		s.cmd = nil
 		s.mu.Unlock()
 		if err != nil {
 			s.addRunLog(fmt.Sprintf("Process exited with error: %v", err))
 		} else {
-			s.addRunLog("Process exited")
+			s.addRunLog("Process exited normally")
 		}
 		saveDB()
 
@@ -705,6 +804,7 @@ func (s *ProjectState) run() {
 
 		if autoRestart {
 			log.Printf("Project %s: Auto-restart enabled. Restarting...", s.ID)
+			time.Sleep(2 * time.Second) // Brief delay before restart
 			go s.run()
 		}
 	}()
@@ -716,35 +816,50 @@ func (s *ProjectState) stop() {
 	wasAutoRestart := s.AutoRestart
 	s.AutoRestart = false
 	pid := s.PID
+	cmd := s.cmd
 	s.mu.Unlock()
 
 	if pid > 0 {
-		// Use a more robust process termination approach
-		if proc, err := os.FindProcess(pid); err == nil && proc != nil {
+		// Try to stop using the command if available
+		if cmd != nil && cmd.Process != nil {
 			// Try graceful termination first
-			_ = proc.Signal(os.Interrupt)
-
-			// Wait a bit for graceful shutdown
-			time.Sleep(500 * time.Millisecond)
-
-			// Force kill if still running
-			_ = proc.Kill()
-
-			// Wait in goroutine to avoid blocking
-			go func() {
-				_, _ = proc.Wait()
-			}()
+			if err := cmd.Process.Signal(os.Interrupt); err != nil {
+				log.Printf("Failed to send interrupt to process %d: %v", pid, err)
+			}
+		} else {
+			// Fallback to process lookup
+			if proc, err := os.FindProcess(pid); err == nil {
+				_ = proc.Signal(os.Interrupt)
+			}
 		}
+
+		// Wait a bit for graceful shutdown
+		time.Sleep(2 * time.Second)
+
+		// Force kill if still running
+		s.mu.Lock()
+		if s.PID == pid { // Check if PID hasn't changed
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			} else if proc, err := os.FindProcess(pid); err == nil {
+				_ = proc.Kill()
+			}
+		}
+		s.mu.Unlock()
 	}
 
 	s.mu.Lock()
-	s.PID = 0
-	s.Status = "Stopped"
-	// Restore auto-restart setting only if it was enabled
+	// Only reset if PID hasn't changed (process wasn't restarted)
+	if s.PID == pid {
+		s.PID = 0
+		s.Status = "Stopped"
+		s.cmd = nil
+	}
+	// Restore auto-restart setting
 	s.AutoRestart = wasAutoRestart
 	s.mu.Unlock()
 
-	log.Printf("Project %s: Stopped successfully. AutoRestart: %v", s.ID, wasAutoRestart)
+	log.Printf("Project %s: Stop completed. AutoRestart: %v", s.ID, wasAutoRestart)
 	saveDB()
 }
 
@@ -754,7 +869,6 @@ type logWriter struct {
 }
 
 func (lw *logWriter) Write(p []byte) (n int, err error) {
-	// minimal line handling; logs are time-stamped in add*Log
 	line := strings.TrimSpace(string(p))
 	if line != "" {
 		if lw.typ == "run" {
@@ -769,13 +883,13 @@ func (lw *logWriter) Write(p []byte) (n int, err error) {
 // Authentication and CORS
 
 func checkAuth(w http.ResponseWriter, r *http.Request) bool {
-	// session cookie preferred
+	// Session cookie preferred
 	if cookie, err := r.Cookie("ci_dashboard_session"); err == nil {
 		if dashboard.validateSession(cookie.Value) {
 			return true
 		}
 	}
-	// fallback to header token for programmatic calls
+	// Fallback to header token for programmatic calls
 	password := r.Header.Get("X-Password")
 	if subtle.ConstantTimeCompare([]byte(password), []byte(dashboard.password)) == 1 {
 		return true
@@ -1052,22 +1166,20 @@ func handleLogs(w http.ResponseWriter, r *http.Request) {
 			lines = n
 		}
 	}
-	project.mu.RLock()
+	
 	var logs []string
 	if typ == "run" {
-		logs = append([]string(nil), project.RunLog...)
+		logs = project.RunLog.GetLastN(lines)
 	} else {
-		logs = append([]string(nil), project.BuildLog...)
+		logs = project.BuildLog.GetLastN(lines)
 	}
-	project.mu.RUnlock()
-	if len(logs) > lines {
-		logs = logs[len(logs)-lines:]
-	}
+	
 	_ = json.NewEncoder(w).Encode(logs)
 }
 
+// Improved event streaming with connection management
 func handleEvents(w http.ResponseWriter, r *http.Request) {
-	// allow credentials - check cookie auth
+	// Allow credentials - check cookie auth
 	cookie, err := r.Cookie("ci_dashboard_session")
 	if err != nil || !dashboard.validateSession(cookie.Value) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -1090,6 +1202,7 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send initial state
 	projects := dashboard.getAllProjects()
 	if data, err := json.Marshal(projects); err == nil {
 		fmt.Fprintf(w, "data: %s\n\n", data)
@@ -1104,7 +1217,10 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-ticker.C:
 			projects := dashboard.getAllProjects()
 			if data, err := json.Marshal(projects); err == nil {
-				fmt.Fprintf(w, "data: %s\n\n", data)
+				if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+					// Client disconnected
+					return
+				}
 				flusher.Flush()
 			}
 		case <-r.Context().Done():
@@ -1113,7 +1229,7 @@ func handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Scheduler for auto-pull uses LastPull field
+// Scheduler for auto-pull
 func startAutoPullScheduler() {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -1123,7 +1239,7 @@ func startAutoPullScheduler() {
 			project.mu.RLock()
 			autoPull := project.AutoPull
 			interval := project.PullInterval
-			lastPull := project.LastPull // Now time.Time
+			lastPull := project.LastPull
 			project.mu.RUnlock()
 
 			if !autoPull || interval <= 0 {
@@ -1136,7 +1252,6 @@ func startAutoPullScheduler() {
 			if timeSinceLastPull > requiredInterval {
 				log.Printf("Project %s: Auto-pull triggered. Time since last pull: %v, Required interval: %v", project.ID, timeSinceLastPull, requiredInterval)
 				go func(p *ProjectState) {
-					// Capture current status before pull
 					p.mu.RLock()
 					statusBeforeAutoPull := p.Status
 					p.mu.RUnlock()
@@ -1193,7 +1308,7 @@ func main() {
 	log.Printf("CI/CD Dashboard starting on http://localhost:%s", port)
 	log.Printf("Default password: %s", dashboard.password)
 	log.Printf("Edit db.json to change password")
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe("0.0.0.0:"+port, nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
